@@ -1,9 +1,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  // ffmpeg-static contient un binaire natif : il ne doit pas être bundlé.
+  serverExternalPackages: ["ffmpeg-static"],
+  // Fichiers lus à l'exécution, à embarquer dans les fonctions Vercel.
+  outputFileTracingIncludes: {
+    "/api/render": [
+      "./node_modules/ffmpeg-static/ffmpeg",
+      "./public/music/**/*.mp3",
+      "./assets/fonts/**/*",
+    ],
+    "/api/music": ["./public/music/**/*.mp3"],
+  },
   turbopack: {
     rules: {
       "*.css": {

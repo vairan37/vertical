@@ -40,6 +40,7 @@ lib/
   music.ts            liste/résolution des musiques (protection path traversal)
   video.ts            appel ffmpeg
 assets/fonts/         police Montserrat ExtraBold (licence OFL)
+next.config.ts        serverExternalPackages + outputFileTracingIncludes (ffmpeg, musiques, police)
 public/music/         musiques .mp3 incorporées dans les vidéos
 ```
 
@@ -76,7 +77,8 @@ public/music/         musiques .mp3 incorporées dans les vidéos
 ## Plan et avancement
 
 - [x] Étape 0 : mise en route (projet "vertical", nettoyage, CLAUDE.md)
-- [ ] Outil de création (image + texte + musique -> MP4), à recréer : le dépôt était vide
+- [x] Outil de création (image + texte + musique -> MP4), testé de bout en bout en local.
+      `public/music/demo-test.mp3` est un son de test à supprimer dès qu'il y a de vraies musiques.
 - [ ] Étape 1 : stockage (Vercel Blob) et base (Neon + Drizzle) : tables `videos`, `publications`,
       `stats`, `social_accounts` ; /api/render renvoie une URL ; bouton "Publier"
 - [ ] Étape 2 : authentification (mot de passe unique, cookie httpOnly, limite de tentatives ;
