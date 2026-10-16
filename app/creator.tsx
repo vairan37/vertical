@@ -48,6 +48,7 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
   const [image, setImage] = useState<Blob | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [title, setTitle] = useState("");
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
   const [library, setLibrary] = useState<string[]>([]);
   const [music, setMusic] = useState("");
@@ -161,6 +162,7 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
       const form = new FormData();
       form.set("image", image, "image.jpg");
       form.set("text", text);
+      form.set("title", title);
       if (templateId) form.set("templateId", templateId);
       form.set("start", String(start));
       form.set("duration", String(duration));
@@ -219,6 +221,11 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
           )}
         </label>
         <input id="image" type="file" accept="image/*" className="sr-only" onChange={(e) => onImage(e.target.files?.[0])} />
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <label className="font-semibold" htmlFor="title">Nom <span className="font-normal text-zinc-500">(optionnel, visible dans Mes vidéos)</span></label>
+        <input id="title" value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} className={input} placeholder="Par défaut : le texte de la vidéo" />
       </section>
 
       {templates.length > 0 && (

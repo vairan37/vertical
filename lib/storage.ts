@@ -1,5 +1,5 @@
-import { put } from "@vercel/blob";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { del, put } from "@vercel/blob";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 export class StorageNotConfiguredError extends Error {
@@ -48,4 +48,18 @@ export async function saveFile(name: string, data: Buffer, contentType: string):
 export async function readLocalFile(name: string): Promise<Buffer | null> {
   if (process.env.VERCEL || !name || name !== basename(name)) return null;
   return readFile(join(LOCAL_DIR, name)).catch(() => null);
+}
+
+/** Supprime des fichiers enregistrés par saveFile (les URL inconnues sont ignorées). */
+export async function deleteFiles(urls: (string | null | undefined)[]): Promise<void> {
+  const list = urls.filter((u): u is string => Boolean(u));
+  const local = list.filter((u) => u.startsWith("/api/files/"));
+  const remote = list.filter((u) => /^https:\/\/[^/]+\.blob\.vercel-storage\.com\//.test(u));
+  if (remote.length && usesVercelBlob()) await del(remote);
+  if (!process.env.VERCEL) {
+    for (const u of local) {
+      const name = decodeURIComponent(u.slice("/api/files/".length).split("?")[0]);
+      if (name === basename(name)) await rm(join(LOCAL_DIR, name), { force: true });
+    }
+  }
 }

@@ -47,9 +47,11 @@ Sans token Blob, les fichiers vont dans `.data/files`.
    départ et la durée (3 à 15 s).
 4. « Créer la vidéo » : le serveur génère un MP4 1080x1920 (H.264 + AAC, 30 fps), l'enregistre et
    l'ajoute à « Mes vidéos ».
-5. « Mes vidéos » : historique avec le statut Instagram / TikTok de chaque vidéo. En attendant la
-   publication automatique, « Marquer publiée » indique à la main ce qui est en ligne ; une alerte
-   signale une vidéo publiée sur un seul réseau.
+5. « Mes vidéos » : grille des couvertures avec leur nom (comme un profil TikTok) et l'état
+   Instagram (IG) / TikTok (TT) de chacune. Touche une vidéo pour la lire, la renommer, la
+   télécharger, la supprimer, ou indiquer à la main où elle est publiée (« Marquer publiée »).
+   ⚠ signale une vidéo publiée sur un seul réseau. Supprimer une vidéo l'efface du site et du
+   stockage, jamais d'Instagram ni de TikTok.
 
 Pour ajouter des musiques : dépose des fichiers `.mp3` dans `public/music/` et redéploie.
 

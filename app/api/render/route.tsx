@@ -10,6 +10,7 @@ import { RenderError, renderVideo } from "@/lib/video";
 
 export const maxDuration = 60;
 
+const MAX_TITLE_LENGTH = 80;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png"];
 
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
   if (image.size > MAX_IMAGE_BYTES) return fail("L'image est trop lourde (4 Mo maximum).");
 
   const text = String(form.get("text") ?? "").trim();
+  const title = String(form.get("title") ?? "").trim().slice(0, MAX_TITLE_LENGTH) || null;
   if (text.length > MAX_TEXT_LENGTH) return fail(`Le texte dépasse ${MAX_TEXT_LENGTH} caractères.`);
 
   const duration = Number(form.get("duration"));
@@ -65,20 +67,23 @@ export async function POST(request: Request) {
     const sourceImage = { dataUrl: `data:${image.type};base64,${imageBuffer.toString("base64")}`, ...size };
     const template = await resolveTemplate(String(form.get("templateId") ?? "") || null);
     const framePng = await renderFrame(sourceImage, text, template.settings);
-    const mp4 = await renderVideo({ framePng, music, start, duration });
+    const { mp4, cover } = await renderVideo({ framePng, music, start, duration });
 
     const id = crypto.randomUUID();
     const ext = image.type === "image/png" ? "png" : "jpg";
-    const [video, source] = await Promise.all([
+    const [video, source, coverFile] = await Promise.all([
       saveFile(`videos/${id}.mp4`, mp4, "video/mp4"),
       saveFile(`images/${id}.${ext}`, imageBuffer, image.type),
+      saveFile(`covers/${id}-cover.jpg`, cover, "image/jpeg"),
     ]);
     await getDb().insert(videos).values({
       id,
+      title,
       text,
       videoUrl: video.url,
       downloadUrl: video.downloadUrl,
       imageUrl: source.url,
+      coverUrl: coverFile.url,
       musicName,
       duration,
       templateId: template.id,

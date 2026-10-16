@@ -26,14 +26,18 @@ function run(bin: string, args: string[]): Promise<void> {
   });
 }
 
-/** Assemble l'image et la musique en MP4 (H.264 + AAC, 1080x1920, 30 fps). */
-export async function renderVideo({ framePng, music, start, duration }: RenderOptions): Promise<Buffer> {
+/**
+ * Assemble l'image et la musique en MP4 (H.264 + AAC, 1080x1920, 30 fps), et produit aussi la
+ * couverture (la frame en JPEG 540x960) pour la grille « Mes vidéos ».
+ */
+export async function renderVideo({ framePng, music, start, duration }: RenderOptions): Promise<{ mp4: Buffer; cover: Buffer }> {
   if (!ffmpegPath) throw new RenderError("ffmpeg est introuvable sur le serveur.");
 
   const dir = await mkdtemp(join(tmpdir(), "vertical-"));
   try {
     const framePath = join(dir, "frame.png");
     const outPath = join(dir, "video.mp4");
+    const coverPath = join(dir, "cover.jpg");
     await writeFile(framePath, framePng);
 
     let musicPath: string;
@@ -85,7 +89,15 @@ export async function renderVideo({ framePng, music, start, duration }: RenderOp
       "-y", outPath,
     ]);
 
-    return await readFile(outPath);
+    await run(ffmpegPath, [
+      "-hide_banner", "-loglevel", "error",
+      "-i", framePath,
+      "-vf", `scale=${VIDEO_WIDTH / 2}:${VIDEO_HEIGHT / 2}`,
+      "-q:v", "4",
+      "-y", coverPath,
+    ]);
+
+    return { mp4: await readFile(outPath), cover: await readFile(coverPath) };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

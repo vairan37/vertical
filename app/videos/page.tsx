@@ -3,25 +3,22 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { DbNotConfiguredError } from "@/lib/db";
-import type { Platform } from "@/lib/db";
-import { listVideos, PLATFORMS, type Publication, type VideoWithPublications } from "@/lib/videos";
-import { setManualPublication } from "./actions";
-import SubmitButton from "./submit-button";
+import { displayName, listVideos, PLATFORMS, type VideoWithPublications } from "@/lib/videos";
 
 export const metadata: Metadata = { title: "Mes vidéos · vertical" };
 
 export default function VideosPage() {
   return (
-    <main className="mx-auto w-full max-w-md flex-1 p-4 pb-12">
-      <h1 className="mb-6 text-2xl font-bold">Mes vidéos</h1>
-      <Suspense fallback={<p className="text-zinc-400">Chargement…</p>}>
-        <VideoList />
+    <main className="mx-auto w-full max-w-md flex-1 pb-12">
+      <h1 className="p-4 text-2xl font-bold">Mes vidéos</h1>
+      <Suspense fallback={<p className="px-4 text-zinc-400">Chargement…</p>}>
+        <VideoGrid />
       </Suspense>
     </main>
   );
 }
 
-async function VideoList() {
+async function VideoGrid() {
   await connection();
   let items: VideoWithPublications[];
   try {
@@ -29,7 +26,7 @@ async function VideoList() {
   } catch (error) {
     console.error("Lecture des vidéos impossible", error);
     return (
-      <p role="alert" className="rounded-xl bg-red-950 px-4 py-3 text-red-200">
+      <p role="alert" className="mx-4 rounded-xl bg-red-950 px-4 py-3 text-red-200">
         {error instanceof DbNotConfiguredError
           ? error.message
           : "Impossible de lire les vidéos depuis la base de données."}
@@ -37,115 +34,62 @@ async function VideoList() {
     );
   }
 
-  if (items.length === 0) {
-    return (
-      <p className="text-zinc-400">
-        Aucune vidéo pour l&apos;instant.{" "}
-        <Link href="/" className="text-sky-400 underline">Créer la première</Link>
-      </p>
-    );
-  }
-
   return (
-    <ul className="flex flex-col gap-4">
-      {items.map((v) => (
-        <VideoCard key={v.id} video={v} />
-      ))}
-    </ul>
+    <>
+      <p className="px-4 pb-3 text-sm text-zinc-400">
+        {items.length} vidéo{items.length > 1 ? "s" : ""}
+      </p>
+      <ul className="grid grid-cols-3 gap-0.5">
+        <li>
+          <Link
+            href="/"
+            className="flex aspect-[9/16] flex-col items-center justify-center gap-1 bg-zinc-900 text-zinc-400"
+          >
+            <span className="text-4xl leading-none">+</span>
+            <span className="text-xs">Nouvelle</span>
+          </Link>
+        </li>
+        {items.map((v) => (
+          <VideoTile key={v.id} video={v} />
+        ))}
+      </ul>
+    </>
   );
 }
 
-const dateFormat = new Intl.DateTimeFormat("fr-FR", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Europe/Paris",
-});
-
-function VideoCard({ video }: { video: VideoWithPublications }) {
+function VideoTile({ video }: { video: VideoWithPublications }) {
   const published = PLATFORMS.filter((p) => video.publications[p.id]?.status === "published");
   const desync = published.length === 1;
-
   return (
-    <li className="flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-3">
-      <div className="flex gap-3">
-        <a href={video.videoUrl} target="_blank" rel="noreferrer" className="shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={video.imageUrl}
-            alt="Aperçu de la vidéo"
-            className="aspect-[9/16] w-20 rounded-lg bg-black object-cover"
-          />
-        </a>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className="line-clamp-3 break-words font-semibold">{video.text || "(sans texte)"}</p>
-          <p className="text-sm text-zinc-400">{dateFormat.format(video.createdAt)}</p>
-          <p className="truncate text-sm text-zinc-500">
-            {video.duration} s · {video.musicName.replace(/\.mp3$/i, "")}
-          </p>
-          <a href={video.downloadUrl} className="text-sm text-sky-400 underline">Télécharger</a>
+    <li>
+      <Link href={`/videos/${video.id}`} className="relative block aspect-[9/16] overflow-hidden bg-zinc-900">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={video.coverUrl ?? video.imageUrl}
+          alt=""
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute right-1 top-1 flex gap-1">
+          {PLATFORMS.map((p) => (
+            <span
+              key={p.id}
+              title={`${p.label} : ${video.publications[p.id]?.status === "published" ? "publiée" : "non publiée"}`}
+              className={`rounded px-1 text-[10px] font-bold leading-4 ${
+                video.publications[p.id]?.status === "published"
+                  ? "bg-green-500 text-black"
+                  : "bg-black/60 text-zinc-400"
+              }`}
+            >
+              {p.id === "instagram" ? "IG" : "TT"}
+            </span>
+          ))}
         </div>
-      </div>
-
-      {desync && (
-        <p className="rounded-lg bg-amber-950 px-3 py-2 text-sm text-amber-200">
-          ⚠ Publiée seulement sur {published[0].label}
-        </p>
-      )}
-
-      <div className="flex flex-col gap-2">
-        {PLATFORMS.map((p) => (
-          <PlatformRow key={p.id} videoId={video.id} platform={p.id} label={p.label} publication={video.publications[p.id]} />
-        ))}
-      </div>
+        {desync && <span className="absolute left-1 top-1 text-sm" title="Publiée sur un seul réseau">⚠</span>}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-1.5 pb-1.5 pt-6">
+          <p className="line-clamp-2 break-words text-xs font-semibold text-white">{displayName(video)}</p>
+        </div>
+      </Link>
     </li>
-  );
-}
-
-const STATUS: Record<Publication["status"], { text: string; className: string }> = {
-  pending: { text: "En attente", className: "text-zinc-300" },
-  processing: { text: "En cours…", className: "text-sky-300" },
-  published: { text: "Publiée ✓", className: "text-green-400" },
-  failed: { text: "Échec", className: "text-red-400" },
-};
-
-function PlatformRow({
-  videoId,
-  platform,
-  label,
-  publication,
-}: {
-  videoId: string;
-  platform: Platform;
-  label: string;
-  publication?: Publication;
-}) {
-  const status = publication ? STATUS[publication.status] : { text: "Non publiée", className: "text-zinc-500" };
-  const isPublished = publication?.status === "published";
-  // Une publication faite par l'API ne se « dé-marque » pas à la main.
-  const canToggle = !publication?.externalId;
-
-  return (
-    <div className="flex flex-col gap-1 rounded-xl bg-zinc-950 px-3 py-2">
-      <div className="flex min-h-11 items-center gap-3">
-        <span className="w-20 shrink-0 font-medium">{label}</span>
-        <span className={`flex-1 whitespace-nowrap text-sm ${status.className}`}>
-          {isPublished && publication?.url ? (
-            <a href={publication.url} target="_blank" rel="noreferrer" className="underline">{status.text}</a>
-          ) : (
-            status.text
-          )}
-        </span>
-        {canToggle && (
-          <form action={setManualPublication.bind(null, videoId, platform, !isPublished)}>
-            <SubmitButton className="min-h-11 rounded-lg bg-zinc-800 px-3 text-sm">
-              {isPublished ? "Annuler" : "Marquer publiée"}
-            </SubmitButton>
-          </form>
-        )}
-      </div>
-      {publication?.status === "failed" && publication.error && (
-        <p className="text-sm text-red-300">{publication.error}</p>
-      )}
-    </div>
   );
 }

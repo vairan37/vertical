@@ -37,11 +37,15 @@ export const templates = pgTable("templates", {
 
 export const videos = pgTable("videos", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** Nom affiché dans « Mes vidéos » (null : on affiche le texte de la vidéo). */
+  title: text("title"),
   text: text("text").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   videoUrl: text("video_url").notNull(),
   downloadUrl: text("download_url").notNull(),
   imageUrl: text("image_url").notNull(),
+  /** Image de la vidéo (texte compris), en JPEG réduit, pour la grille. Null pour les anciennes vidéos. */
+  coverUrl: text("cover_url"),
   musicName: text("music_name").notNull(),
   duration: real("duration").notNull(),
   /** Template utilisée (null si supprimée depuis, ou vidéo antérieure aux templates). */

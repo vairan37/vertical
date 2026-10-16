@@ -40,7 +40,8 @@ app/
   nav.tsx             barre de navigation (Créer / Mes vidéos / Templates)
   page.tsx            page d'accueil -> outil de création
   creator.tsx         composant client de création (image, texte, musique, durée, aperçu)
-  videos/             page "Mes vidéos" : historique + statut Instagram/TikTok, marquage manuel
+  videos/             "Mes vidéos" : grille de couvertures façon profil TikTok ; [id] = détail
+                      (lecture, renommer, télécharger, supprimer, statut + marquage manuel)
   api/music/route.ts  GET : liste des musiques de public/music
   api/render/route.tsx POST multipart : génère le MP4, l'enregistre (stockage + base), renvoie l'URL
   templates/          CRUD des templates : liste (créer, dupliquer, par défaut) et éditeur [id]
@@ -104,7 +105,10 @@ public/music/         musiques .mp3 incorporées dans les vidéos
 - [x] Étape 1 : stockage (Vercel Blob) et base (Neon + Drizzle) : tables `videos`, `publications`,
       `stats`, `social_accounts` ; /api/render renvoie une URL ; page "Mes vidéos" avec statut par
       plateforme, alerte de désynchronisation et marquage manuel "publiée" (en attendant l'API).
-      Testé en local (Postgres 16 + stockage disque). Reste : configurer Neon + Blob sur Vercel.
+      Neon + Blob configurés sur Vercel (Blob relié par OIDC : BLOB_STORE_ID).
+- [x] « Mes vidéos » en CRUD : grille de couvertures (frame JPEG 540x960 générée au rendu, colonne
+      cover_url), nom optionnel (colonne title), page détail : renommer, supprimer (base + fichiers
+      Blob ; rien n'est supprimé sur les réseaux), statut par plateforme.
 - [x] Templates : onglet « Templates » (CRUD), réglages simples (position/taille du texte et de
       l'image, cadrage remplir / pleine largeur / pleine hauteur, police, couleurs, assombrissement), aperçu en direct, template par défaut, choix de
       la template à la création. Remplace la « template fixe unique » du cahier des charges, à la
