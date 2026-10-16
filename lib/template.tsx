@@ -47,26 +47,57 @@ function fontSizeFor(text: string, base: number): number {
   return Math.round(base * factor);
 }
 
+export type SourceImage = { dataUrl: string; width: number; height: number };
+
+/** Format de l'emplacement factice de l'aperçu (photo en paysage 4:3, pour voir les bandes). */
+const PLACEHOLDER_RATIO = 4 / 3;
+
+/**
+ * Boîte de l'image dans la vidéo, selon le cadrage :
+ * - cover : cadre 9:16 (recadrage) ;
+ * - width : largeur = imageScale % de la vidéo, hauteur selon le format de la photo ;
+ * - height : hauteur = imageScale % de la vidéo, largeur selon le format de la photo
+ *   (ce qui dépasse sur les côtés est rogné).
+ * Toujours centrée horizontalement, centre vertical à imageY %.
+ */
+function imageBox(settings: TemplateSettings, ratio: number) {
+  const k = settings.imageScale / 100;
+  let w: number;
+  let h: number;
+  if (settings.imageFit === "width") {
+    w = VIDEO_WIDTH * k;
+    h = w / ratio;
+  } else if (settings.imageFit === "height") {
+    h = VIDEO_HEIGHT * k;
+    w = h * ratio;
+  } else {
+    w = VIDEO_WIDTH * k;
+    h = VIDEO_HEIGHT * k;
+  }
+  const fullScreen = settings.imageFit === "cover" && k >= 1;
+  return {
+    width: Math.round(w),
+    height: Math.round(h),
+    left: fullScreen ? 0 : Math.round((VIDEO_WIDTH - w) / 2),
+    top: fullScreen ? 0 : Math.round((VIDEO_HEIGHT * settings.imageY) / 100 - h / 2),
+    // Coins arrondis seulement pour une image réduite (cadre visible).
+    radius: k < 1 ? 32 : 0,
+  };
+}
+
 /**
  * Génère l'image (PNG 1080x1920) de la vidéo.
- * @param imageDataUrl image source en data URL (JPEG ou PNG), ou null pour un emplacement factice
- *                     (aperçu dans l'éditeur de templates)
+ * @param image image source (data URL JPEG ou PNG et dimensions), ou null pour un emplacement
+ *              factice (aperçu dans l'éditeur de templates)
  */
 export async function renderFrame(
-  imageDataUrl: string | null,
+  image: SourceImage | null,
   text: string,
   settings: TemplateSettings,
 ): Promise<Buffer> {
   const font = FONTS[settings.font];
   const fontData = await loadFont(settings.font);
-
-  // Boîte de l'image : au format 9:16, largeur = imageScale % de la vidéo, centrée horizontalement,
-  // centre vertical à imageY %. À 100 %, l'image remplit tout l'écran.
-  const imgW = Math.round((VIDEO_WIDTH * settings.imageScale) / 100);
-  const imgH = Math.round((VIDEO_HEIGHT * settings.imageScale) / 100);
-  const imgLeft = Math.round((VIDEO_WIDTH - imgW) / 2);
-  const imgTop = Math.round((VIDEO_HEIGHT * settings.imageY) / 100 - imgH / 2);
-  const fullBleed = settings.imageScale >= 100;
+  const box = imageBox(settings, image ? image.width / image.height : PLACEHOLDER_RATIO);
 
   // Bande du texte centrée sur textY % : le texte est centré verticalement dans cette bande.
   const half = Math.min(settings.textY, 100 - settings.textY);
@@ -84,32 +115,32 @@ export async function renderFrame(
           backgroundColor: settings.backgroundColor,
         }}
       >
-        {imageDataUrl ? (
+        {image ? (
           // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
           <img
-            src={imageDataUrl}
-            width={imgW}
-            height={imgH}
+            src={image.dataUrl}
+            width={box.width}
+            height={box.height}
             style={{
               position: "absolute",
-              top: fullBleed ? 0 : imgTop,
-              left: fullBleed ? 0 : imgLeft,
+              top: box.top,
+              left: box.left,
               objectFit: "cover",
-              borderRadius: fullBleed ? 0 : 32,
+              borderRadius: box.radius,
             }}
           />
         ) : (
           <div
             style={{
               position: "absolute",
-              top: fullBleed ? 0 : imgTop,
-              left: fullBleed ? 0 : imgLeft,
-              width: imgW,
-              height: imgH,
+              top: box.top,
+              left: box.left,
+              width: box.width,
+              height: box.height,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              borderRadius: fullBleed ? 0 : 32,
+              borderRadius: box.radius,
               backgroundImage: "linear-gradient(135deg, #6d28d9 0%, #db2777 50%, #f59e0b 100%)",
               color: "rgba(255,255,255,0.45)",
               fontSize: 72,

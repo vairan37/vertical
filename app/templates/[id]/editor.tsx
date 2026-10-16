@@ -3,7 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { previewUrl, SAMPLE_TEXT } from "@/lib/template-preview";
-import { FONTS, LIMITS, type FontId, type TemplateSettings } from "@/lib/template-settings";
+import {
+  FONTS,
+  IMAGE_FITS,
+  LIMITS,
+  type FontId,
+  type ImageFit,
+  type TemplateSettings,
+} from "@/lib/template-settings";
 import { deleteTemplate, updateTemplate } from "../actions";
 
 type Props = { id: string; initialName: string; initialSettings: TemplateSettings };
@@ -126,10 +133,28 @@ export default function Editor({ id, initialName, initialSettings }: Props) {
 
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-2 font-semibold">Image</legend>
+        <div className="flex flex-col gap-2">
+          <span>Cadrage</span>
+          <div className="grid grid-cols-3 gap-2" role="radiogroup">
+            {(Object.keys(IMAGE_FITS) as ImageFit[]).map((f) => (
+              <button
+                key={f}
+                type="button"
+                role="radio"
+                aria-checked={settings.imageFit === f}
+                onClick={() => set("imageFit", f)}
+                className={`min-h-12 rounded-xl px-2 text-sm font-semibold ${settings.imageFit === f ? "bg-white text-black" : "bg-zinc-800"}`}
+              >
+                {IMAGE_FITS[f].label}
+              </button>
+            ))}
+          </div>
+          <p className="text-sm text-zinc-400">{IMAGE_FITS[settings.imageFit].hint}</p>
+        </div>
         {slider("imageScale", "Taille", "%")}
         {slider("imageY", "Position verticale", "%")}
         <label className="flex min-h-11 items-center justify-between gap-3">
-          <span>Couleur du fond</span>
+          <span>Couleur du fond (bandes)</span>
           <input type="color" value={settings.backgroundColor} onChange={(e) => set("backgroundColor", e.target.value)} className="h-11 w-16 rounded-lg bg-transparent" />
         </label>
         <label className="flex min-h-11 items-center justify-between gap-3">

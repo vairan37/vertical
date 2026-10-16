@@ -51,6 +51,7 @@ lib/
   template-settings.ts réglages d'une template (positions, tailles, police, couleurs), polices,
                       valeurs par défaut et validation (parseSettings) ; partagé client/serveur
   templates.ts        lecture des templates, choix de celle à utiliser pour un rendu
+  image-size.ts       dimensions d'un JPEG/PNG (cadrages pleine largeur / pleine hauteur)
   music.ts            liste/résolution des musiques (protection path traversal)
   video.ts            appel ffmpeg
   db/schema.ts        tables Drizzle : templates, videos, publications, stats, social_accounts
@@ -105,7 +106,7 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       plateforme, alerte de désynchronisation et marquage manuel "publiée" (en attendant l'API).
       Testé en local (Postgres 16 + stockage disque). Reste : configurer Neon + Blob sur Vercel.
 - [x] Templates : onglet « Templates » (CRUD), réglages simples (position/taille du texte et de
-      l'image, police, couleurs, assombrissement), aperçu en direct, template par défaut, choix de
+      l'image, cadrage remplir / pleine largeur / pleine hauteur, police, couleurs, assombrissement), aperçu en direct, template par défaut, choix de
       la template à la création. Remplace la « template fixe unique » du cahier des charges, à la
       demande de Victor. Template de départ « Classique » insérée par la migration 0002.
 - [ ] Étape 2 : authentification (mot de passe unique, cookie httpOnly, limite de tentatives ;

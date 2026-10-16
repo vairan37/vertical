@@ -15,6 +15,14 @@ export const FONTS = {
 
 export type FontId = keyof typeof FONTS;
 
+export const IMAGE_FITS = {
+  cover: { label: "Remplir l'écran", hint: "L'image est recadrée pour remplir le cadre 9:16." },
+  width: { label: "Pleine largeur", hint: "Toute la largeur : une photo en paysage laisse des bandes en haut et en bas." },
+  height: { label: "Pleine hauteur", hint: "Toute la hauteur : une photo étroite laisse des bandes sur les côtés, une photo large est rognée." },
+} as const;
+
+export type ImageFit = keyof typeof IMAGE_FITS;
+
 export type TemplateSettings = {
   /** Centre vertical du texte, en % de la hauteur (0 = haut, 100 = bas). */
   textY: number;
@@ -22,11 +30,13 @@ export type TemplateSettings = {
   textSize: number;
   textColor: string;
   font: FontId;
+  /** Cadrage : remplir (recadrage), pleine largeur ou pleine hauteur (bandes possibles). */
+  imageFit: ImageFit;
   /** Centre vertical de l'image, en %. */
   imageY: number;
-  /** Largeur de l'image en % de la vidéo (100 = plein écran). */
+  /** Taille de l'image en % (100 = toute la largeur, la hauteur ou l'écran selon le cadrage). */
   imageScale: number;
-  /** Couleur visible autour de l'image quand elle ne remplit pas l'écran. */
+  /** Couleur des bandes, visibles quand l'image ne remplit pas l'écran. */
   backgroundColor: string;
   /** Dégradé sombre par-dessus l'image, pour la lisibilité du texte. */
   darken: boolean;
@@ -38,6 +48,7 @@ export const DEFAULT_SETTINGS: TemplateSettings = {
   textSize: 104,
   textColor: "#ffffff",
   font: "montserrat",
+  imageFit: "cover",
   imageY: 50,
   imageScale: 100,
   backgroundColor: "#000000",
@@ -69,6 +80,7 @@ export function parseSettings(input: unknown): TemplateSettings {
     textSize: num(o.textSize, "textSize"),
     textColor: color(o.textColor, DEFAULT_SETTINGS.textColor),
     font: typeof o.font === "string" && o.font in FONTS ? (o.font as FontId) : DEFAULT_SETTINGS.font,
+    imageFit: typeof o.imageFit === "string" && o.imageFit in IMAGE_FITS ? (o.imageFit as ImageFit) : DEFAULT_SETTINGS.imageFit,
     imageY: num(o.imageY, "imageY"),
     imageScale: num(o.imageScale, "imageScale"),
     backgroundColor: color(o.backgroundColor, DEFAULT_SETTINGS.backgroundColor),

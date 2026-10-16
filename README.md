@@ -57,7 +57,9 @@ Pour ajouter des musiques : dépose des fichiers `.mp3` dans `public/music/` et 
 
 L'onglet « Templates » permet de créer, modifier, dupliquer et supprimer des templates, et de
 choisir celle présélectionnée à la création (« Par défaut »). Réglages : position et taille du
-texte, police, couleur du texte, taille et position de l'image, couleur du fond, assombrissement.
+texte, police, couleur du texte, cadrage de l'image (remplir l'écran, pleine largeur ou pleine
+hauteur ; les deux derniers créent des bandes selon le format de la photo), taille et position de
+l'image, couleur du fond (bandes), assombrissement.
 L'aperçu se met à jour en direct. Supprimer une template ne supprime pas les vidéos déjà créées.
 
 Pour ajouter une police : dépose un fichier `.ttf` **statique** (pas de police variable) dans

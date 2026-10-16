@@ -2,6 +2,7 @@ import { access } from "node:fs/promises";
 import ffmpegPath from "ffmpeg-static";
 import { DbNotConfiguredError, getDb, videos } from "@/lib/db";
 import { listMusic, MAX_UPLOADED_MUSIC_BYTES, resolveMusic } from "@/lib/music";
+import { imageSize } from "@/lib/image-size";
 import { saveFile, StorageNotConfiguredError, usesVercelBlob } from "@/lib/storage";
 import { resolveTemplate } from "@/lib/templates";
 import { MAX_DURATION, MAX_TEXT_LENGTH, MIN_DURATION, renderFrame } from "@/lib/template";
@@ -59,9 +60,11 @@ export async function POST(request: Request) {
 
   try {
     const imageBuffer = Buffer.from(await image.arrayBuffer());
-    const imageDataUrl = `data:${image.type};base64,${imageBuffer.toString("base64")}`;
+    const size = imageSize(imageBuffer);
+    if (!size || size.width === 0 || size.height === 0) return fail("L'image n'a pas pu être lue (JPEG ou PNG attendu).");
+    const sourceImage = { dataUrl: `data:${image.type};base64,${imageBuffer.toString("base64")}`, ...size };
     const template = await resolveTemplate(String(form.get("templateId") ?? "") || null);
-    const framePng = await renderFrame(imageDataUrl, text, template.settings);
+    const framePng = await renderFrame(sourceImage, text, template.settings);
     const mp4 = await renderVideo({ framePng, music, start, duration });
 
     const id = crypto.randomUUID();
