@@ -2,14 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 
 const LINKS = [
   { href: "/", label: "Créer" },
   { href: "/videos", label: "Mes vidéos" },
+  { href: "/templates", label: "Templates" },
 ] as const;
 
-export default function Nav() {
-  const pathname = usePathname();
+function isActive(href: string, pathname: string | null) {
+  if (!pathname) return false;
+  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+}
+
+function NavBar({ pathname }: { pathname: string | null }) {
   return (
     <nav className="sticky top-0 z-10 border-b border-zinc-800 bg-background/95 backdrop-blur">
       <div className="mx-auto flex max-w-md">
@@ -17,12 +23,25 @@ export default function Nav() {
           <Link
             key={l.href}
             href={l.href}
-            className={`flex-1 py-4 text-center font-semibold ${pathname === l.href ? "text-white" : "text-zinc-500"}`}
+            className={`flex-1 py-4 text-center font-semibold ${isActive(l.href, pathname) ? "text-white" : "text-zinc-500"}`}
           >
             {l.label}
           </Link>
         ))}
       </div>
     </nav>
+  );
+}
+
+function ActiveNav() {
+  return <NavBar pathname={usePathname()} />;
+}
+
+/** L'onglet actif dépend de l'URL : il est rendu sous Suspense (exigé sur les routes dynamiques). */
+export default function Nav() {
+  return (
+    <Suspense fallback={<NavBar pathname={null} />}>
+      <ActiveNav />
+    </Suspense>
   );
 }

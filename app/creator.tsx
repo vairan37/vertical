@@ -42,10 +42,13 @@ function labelFor(name: string) {
   return name.replace(/\.mp3$/i, "").replace(/[-_]+/g, " ");
 }
 
-export default function Creator() {
+export type TemplateOption = { id: string; name: string };
+
+export default function Creator({ templates }: { templates: TemplateOption[] }) {
   const [image, setImage] = useState<Blob | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
   const [library, setLibrary] = useState<string[]>([]);
   const [music, setMusic] = useState("");
   const [musicFile, setMusicFile] = useState<File | null>(null);
@@ -158,6 +161,7 @@ export default function Creator() {
       const form = new FormData();
       form.set("image", image, "image.jpg");
       form.set("text", text);
+      if (templateId) form.set("templateId", templateId);
       form.set("start", String(start));
       form.set("duration", String(duration));
       if (musicFile) form.set("musicFile", musicFile);
@@ -216,6 +220,17 @@ export default function Creator() {
         </label>
         <input id="image" type="file" accept="image/*" className="sr-only" onChange={(e) => onImage(e.target.files?.[0])} />
       </section>
+
+      {templates.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <label className="font-semibold" htmlFor="template">Template</label>
+          <select id="template" value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={input}>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+        </section>
+      )}
 
       <section className="flex flex-col gap-2">
         <label className="font-semibold" htmlFor="text">Texte</label>

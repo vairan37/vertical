@@ -3,6 +3,7 @@ import ffmpegPath from "ffmpeg-static";
 import { DbNotConfiguredError, getDb, videos } from "@/lib/db";
 import { listMusic, MAX_UPLOADED_MUSIC_BYTES, resolveMusic } from "@/lib/music";
 import { saveFile, StorageNotConfiguredError, usesVercelBlob } from "@/lib/storage";
+import { resolveTemplate } from "@/lib/templates";
 import { MAX_DURATION, MAX_TEXT_LENGTH, MIN_DURATION, renderFrame } from "@/lib/template";
 import { RenderError, renderVideo } from "@/lib/video";
 
@@ -59,7 +60,8 @@ export async function POST(request: Request) {
   try {
     const imageBuffer = Buffer.from(await image.arrayBuffer());
     const imageDataUrl = `data:${image.type};base64,${imageBuffer.toString("base64")}`;
-    const framePng = await renderFrame(imageDataUrl, text);
+    const template = await resolveTemplate(String(form.get("templateId") ?? "") || null);
+    const framePng = await renderFrame(imageDataUrl, text, template.settings);
     const mp4 = await renderVideo({ framePng, music, start, duration });
 
     const id = crypto.randomUUID();
@@ -76,6 +78,7 @@ export async function POST(request: Request) {
       imageUrl: source.url,
       musicName,
       duration,
+      templateId: template.id,
     });
     return Response.json({ id, videoUrl: video.url, downloadUrl: video.downloadUrl });
   } catch (error) {

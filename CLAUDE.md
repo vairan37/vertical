@@ -3,7 +3,7 @@
 # vertical
 
 Site perso (PWA, surtout utilisé sur téléphone) pour créer une vidéo verticale 9:16 à partir d'une
-template fixe (seuls l'image, le texte et la musique changent), la publier en un clic sur Instagram
+template (image + texte + musique ; templates éditables dans l'onglet « Templates »), la publier en un clic sur Instagram
 (Reels) et TikTok, et suivre les vues. Un seul utilisateur : Victor. Interface en français, échanges
 en français (tutoiement).
 
@@ -37,24 +37,30 @@ les fichiers sont enregistrés dans `.data/files` et servis par `/api/files/[nam
 ```
 app/
   layout.tsx          layout racine (lang="fr", thème sombre, navigation)
-  nav.tsx             barre de navigation (Créer / Mes vidéos)
+  nav.tsx             barre de navigation (Créer / Mes vidéos / Templates)
   page.tsx            page d'accueil -> outil de création
   creator.tsx         composant client de création (image, texte, musique, durée, aperçu)
   videos/             page "Mes vidéos" : historique + statut Instagram/TikTok, marquage manuel
   api/music/route.ts  GET : liste des musiques de public/music
   api/render/route.tsx POST multipart : génère le MP4, l'enregistre (stockage + base), renvoie l'URL
+  templates/          CRUD des templates : liste (créer, dupliquer, par défaut) et éditeur [id]
+  api/templates/preview/ GET : aperçu PNG d'une template (réglages en JSON dans ?s=)
   api/files/[name]/   sert le stockage local (dev sans Vercel Blob)
 lib/
-  template.tsx        TOUTE l'apparence de la template (unique endroit à modifier pour le look)
+  template.tsx        rendu de la frame (ImageResponse) à partir des réglages d'une template
+  template-settings.ts réglages d'une template (positions, tailles, police, couleurs), polices,
+                      valeurs par défaut et validation (parseSettings) ; partagé client/serveur
+  templates.ts        lecture des templates, choix de celle à utiliser pour un rendu
   music.ts            liste/résolution des musiques (protection path traversal)
   video.ts            appel ffmpeg
-  db/schema.ts        tables Drizzle : videos, publications, stats, social_accounts
+  db/schema.ts        tables Drizzle : templates, videos, publications, stats, social_accounts
   db/index.ts         connexion Postgres (driver pg, compatible Neon)
   storage.ts          Vercel Blob (ou disque local en dev)
   videos.ts           lecture des vidéos avec leurs publications
 drizzle/              migrations SQL générées (ne pas modifier à la main)
 scripts/migrate.mjs   applique les migrations (ignoré si DATABASE_URL absente)
-assets/fonts/         police Montserrat ExtraBold (licence OFL)
+assets/fonts/         polices TTF statiques (OFL / Apache) ; ajouter une police = fichier ici +
+                      entrée dans FONTS (lib/template-settings.ts). Pas de police variable (Satori).
 next.config.ts        serverExternalPackages + outputFileTracingIncludes (ffmpeg, musiques, police)
 public/music/         musiques .mp3 incorporées dans les vidéos
 ```
@@ -98,6 +104,10 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       `stats`, `social_accounts` ; /api/render renvoie une URL ; page "Mes vidéos" avec statut par
       plateforme, alerte de désynchronisation et marquage manuel "publiée" (en attendant l'API).
       Testé en local (Postgres 16 + stockage disque). Reste : configurer Neon + Blob sur Vercel.
+- [x] Templates : onglet « Templates » (CRUD), réglages simples (position/taille du texte et de
+      l'image, police, couleurs, assombrissement), aperçu en direct, template par défaut, choix de
+      la template à la création. Remplace la « template fixe unique » du cahier des charges, à la
+      demande de Victor. Template de départ « Classique » insérée par la migration 0002.
 - [ ] Étape 2 : authentification (mot de passe unique, cookie httpOnly, limite de tentatives ;
       routes cron protégées par secret)
 - [ ] Étape 3 : publication (SocialProvider + simulation, écran de publication, Instagram, TikTok,

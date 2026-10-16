@@ -52,7 +52,16 @@ Sans token Blob, les fichiers vont dans `.data/files`.
    signale une vidéo publiée sur un seul réseau.
 
 Pour ajouter des musiques : dépose des fichiers `.mp3` dans `public/music/` et redéploie.
-Pour changer le look des vidéos : modifie uniquement `lib/template.tsx`.
+
+## Templates
+
+L'onglet « Templates » permet de créer, modifier, dupliquer et supprimer des templates, et de
+choisir celle présélectionnée à la création (« Par défaut »). Réglages : position et taille du
+texte, police, couleur du texte, taille et position de l'image, couleur du fond, assombrissement.
+L'aperçu se met à jour en direct. Supprimer une template ne supprime pas les vidéos déjà créées.
+
+Pour ajouter une police : dépose un fichier `.ttf` **statique** (pas de police variable) dans
+`assets/fonts/` et ajoute-la dans `FONTS` (`lib/template-settings.ts`).
 
 ## Avancement
 

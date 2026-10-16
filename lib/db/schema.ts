@@ -1,6 +1,8 @@
 import {
+  boolean,
   date,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   real,
@@ -9,6 +11,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { TemplateSettings } from "../template-settings";
 
 export const platform = pgEnum("platform", ["instagram", "tiktok"]);
 export const publicationStatus = pgEnum("publication_status", [
@@ -21,6 +24,17 @@ export const publicationStatus = pgEnum("publication_status", [
 export type Platform = (typeof platform.enumValues)[number];
 export type PublicationStatus = (typeof publicationStatus.enumValues)[number];
 
+export const templates = pgTable("templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  /** Réglages validés par parseSettings (lib/template-settings.ts). */
+  settings: jsonb("settings").$type<TemplateSettings>().notNull(),
+  /** Template présélectionnée dans l'outil de création. */
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const videos = pgTable("videos", {
   id: uuid("id").primaryKey().defaultRandom(),
   text: text("text").notNull().default(""),
@@ -30,6 +44,8 @@ export const videos = pgTable("videos", {
   imageUrl: text("image_url").notNull(),
   musicName: text("music_name").notNull(),
   duration: real("duration").notNull(),
+  /** Template utilisée (null si supprimée depuis, ou vidéo antérieure aux templates). */
+  templateId: uuid("template_id").references(() => templates.id, { onDelete: "set null" }),
 });
 
 /** Une ligne par vidéo et par plateforme : une relance réutilise la même ligne. */

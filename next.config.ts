@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
       "./assets/fonts/**/*",
     ],
     "/api/music": ["./public/music/**/*.mp3"],
+    "/api/templates/preview": ["./assets/fonts/**/*"],
   },
   turbopack: {
     rules: {
