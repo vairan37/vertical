@@ -18,6 +18,9 @@ export function usesVercelBlob() {
 
 export type StoredFile = { url: string; downloadUrl: string };
 
+/** Taille max d'un clip vidéo envoyé depuis le téléphone. */
+export const MAX_CLIP_BYTES = 200 * 1024 * 1024;
+
 /** Dossier de repli en local, quand Vercel Blob n'est pas configuré (dev uniquement). */
 const LOCAL_DIR = join(process.cwd(), ".data", "files");
 
@@ -62,4 +65,39 @@ export async function deleteFiles(urls: (string | null | undefined)[]): Promise<
       if (name === basename(name)) await rm(join(LOCAL_DIR, name), { force: true });
     }
   }
+}
+
+const BLOB_URL = /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\//;
+const LOCAL_URL = /^\/api\/files\/([^/?#]+)$/;
+
+/** Vrai si l'URL désigne un fichier de notre propre stockage (Blob du projet ou disque local). */
+export function isStoredUrl(url: string) {
+  return BLOB_URL.test(url) || (!process.env.VERCEL && LOCAL_URL.test(url));
+}
+
+/**
+ * Copie un fichier de notre stockage dans `dest` (dossier temporaire), sans dépasser `maxBytes`.
+ * Refuse toute autre URL : le serveur ne télécharge jamais une adresse arbitraire.
+ */
+export async function downloadStoredFile(url: string, dest: string, maxBytes: number): Promise<void> {
+  const local = url.match(LOCAL_URL);
+  if (local && !process.env.VERCEL) {
+    const data = await readLocalFile(decodeURIComponent(local[1]));
+    if (!data) throw new Error("Fichier introuvable.");
+    if (data.length > maxBytes) throw new Error("Fichier trop lourd.");
+    await writeFile(dest, data);
+    return;
+  }
+  if (!BLOB_URL.test(url)) throw new Error("Adresse de fichier refusée.");
+  const res = await fetch(url);
+  if (!res.ok || !res.body) throw new Error(`Téléchargement impossible (${res.status}).`);
+  if (Number(res.headers.get("content-length") ?? 0) > maxBytes) throw new Error("Fichier trop lourd.");
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
+    size += chunk.length;
+    if (size > maxBytes) throw new Error("Fichier trop lourd.");
+    chunks.push(Buffer.from(chunk));
+  }
+  await writeFile(dest, Buffer.concat(chunks));
 }

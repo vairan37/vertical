@@ -44,6 +44,8 @@ export const videos = pgTable("videos", {
   videoUrl: text("video_url").notNull(),
   downloadUrl: text("download_url").notNull(),
   imageUrl: text("image_url").notNull(),
+  /** Clip vidéo source, quand la vidéo est illustrée par une vidéo plutôt qu'une photo. */
+  sourceVideoUrl: text("source_video_url"),
   /** Image de la vidéo (texte compris), en JPEG réduit, pour la grille. Null pour les anciennes vidéos. */
   coverUrl: text("cover_url"),
   musicName: text("music_name").notNull(),

@@ -45,7 +45,11 @@ En haut de « Créer », l'**aperçu exact** (calculé par le même moteur que l
 tes réglages : photo, texte, template. « ▶ Lire l'aperçu » joue la musique choisie (départ et
 durée) avec les fondus.
 
-1. Choisis une photo (réduite à 2000 px dans le navigateur avant l'envoi).
+1. Choisis une **photo** (réduite à 2000 px dans le navigateur avant l'envoi) **ou une vidéo**
+   (MP4, MOV ou WebM, 200 Mo max). La vidéo est envoyée directement dans le stockage pendant que
+   tu règles le reste ; elle est cadrée comme une photo (template), rejouée en boucle si elle est
+   plus courte que la vidéo, et son propre son est remplacé par la musique choisie. Avec un clip,
+   la création prend à peu près la durée de la vidéo.
 2. Écris le texte (300 caractères max).
 3. Choisis une musique de `public/music/` ou envoie un fichier audio (3 Mo max), règle le point de
    départ et la durée (3 à 90 s, la limite des Reels publiés par l'API Instagram).

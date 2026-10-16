@@ -23,7 +23,9 @@ export async function POST(request: Request) {
   const text = String(form.get("text") ?? "").trim().slice(0, MAX_TEXT_LENGTH);
   try {
     const template = await resolveTemplate(String(form.get("templateId") ?? "") || null);
-    const jpeg = await frameToJpeg(await renderFrame(source ? source.image : null, text, template.settings));
+    // Pour un clip, l'image envoyée est une image du clip : pas de coins arrondis (comme le rendu).
+    const rounded = form.get("media") !== "clip";
+    const jpeg = await frameToJpeg(await renderFrame(source ? source.image : null, text, template.settings, { rounded }));
     return new Response(new Uint8Array(jpeg), { headers: { "Content-Type": "image/jpeg", "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Aperçu impossible", error);

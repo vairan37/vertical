@@ -1,5 +1,6 @@
 "use client";
 
+import { uploadPresigned } from "@vercel/blob/client";
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import YoutubePicker from "./youtube-picker";
@@ -39,8 +40,54 @@ function canShareVideo() {
   }
 }
 
-/** Délai max d'attente du serveur avant d'abandonner. */
-const RENDER_TIMEOUT_MS = 90_000;
+/** Délai max d'attente du serveur avant d'abandonner (un clip vidéo peut prendre ~2 min). */
+const RENDER_TIMEOUT_MS = 310_000;
+
+const MAX_CLIP_BYTES = 200 * 1024 * 1024;
+const CLIP_TYPES: Record<string, string> = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm" };
+
+type Clip = {
+  name: string;
+  /** Durée du clip en secondes (il tourne en boucle s'il est plus court que la vidéo). */
+  duration: number;
+  progress: number;
+  /** URL dans le stockage une fois l'envoi terminé. */
+  url: string | null;
+  error: string | null;
+};
+
+/** Image d'un clip (à 0,5 s) en JPEG, pour l'aperçu, et sa durée. */
+function clipFrame(file: File): Promise<{ frame: Blob; duration: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    const done = (error?: Error) => {
+      URL.revokeObjectURL(url);
+      video.removeAttribute("src");
+      if (error) reject(error);
+    };
+    video.onerror = () => done(new Error("Cette vidéo n'a pas pu être lue sur cet appareil."));
+    video.onloadedmetadata = () => {
+      video.currentTime = Math.min(0.5, (video.duration || 1) / 2);
+    };
+    video.onseeked = () => {
+      const scale = Math.min(1, PREVIEW_IMAGE_SIDE / Math.max(video.videoWidth, video.videoHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const duration = video.duration;
+      canvas.toBlob((b) => {
+        done(b ? undefined : new Error("Image du clip impossible à extraire."));
+        if (b) resolve({ frame: b, duration });
+      }, "image/jpeg", 0.85);
+    };
+    video.src = url;
+  });
+}
 
 /** Durée des fondus simulés dans l'aperçu, en secondes (comme FADES.videoIn/Out du rendu). */
 const FADE = 0.4;
@@ -55,8 +102,10 @@ function labelFor(name: string) {
 
 export type TemplateOption = { id: string; name: string };
 
-export default function Creator({ templates }: { templates: TemplateOption[] }) {
+export default function Creator({ templates, blobUpload }: { templates: TemplateOption[]; blobUpload: boolean }) {
   const [image, setImage] = useState<Blob | null>(null);
+  const [clip, setClip] = useState<Clip | null>(null);
+  const uploadAbort = useRef<AbortController | null>(null);
   const [previewImage, setPreviewImage] = useState<Blob | null>(null);
   const [preview, setPreview] = useState<{ url: string | null; loading: boolean; error: string | null }>({
     url: null,
@@ -133,6 +182,7 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
       try {
         const form = new FormData();
         if (previewImage) form.set("image", previewImage, "apercu.jpg");
+        if (clip) form.set("media", "clip");
         form.set("text", text);
         if (templateId) form.set("templateId", templateId);
         const res = await fetch("/api/preview", { method: "POST", body: form, signal: controller.signal });
@@ -154,7 +204,9 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [previewImage, text, templateId]);
+    // clip : seul « est-ce un clip ? » compte (coins arrondis), pas la progression de l'envoi.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewImage, text, templateId, Boolean(clip)]);
 
   // Libère les URL locales quand elles changent.
   useEffect(() => () => { if (musicFileUrl) URL.revokeObjectURL(musicFileUrl); }, [musicFileUrl]);
@@ -166,11 +218,65 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
   useEffect(() => {
     const file = imageInputRef.current?.files?.[0];
     if (file) void onImage(file);
+    // Une seule fois, au montage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Envoie le clip directement au stockage (Vercel Blob), en suivant la progression. */
+  async function uploadClip(file: File) {
+    uploadAbort.current?.abort();
+    const controller = new AbortController();
+    uploadAbort.current = controller;
+    const ext = CLIP_TYPES[file.type];
+    try {
+      let url: string;
+      if (blobUpload) {
+        const blob = await uploadPresigned(`sources/${crypto.randomUUID()}.${ext}`, file, {
+          access: "public",
+          handleUploadUrl: "/api/uploads",
+          contentType: file.type,
+          multipart: file.size > 8 * 1024 * 1024,
+          abortSignal: controller.signal,
+          onUploadProgress: ({ percentage }) =>
+            setClip((c) => (c ? { ...c, progress: Math.round(percentage) } : c)),
+        });
+        url = blob.url;
+      } else {
+        // En local sans Blob : envoi classique vers le disque.
+        const form = new FormData();
+        form.set("file", file);
+        const res = await fetch("/api/uploads", { method: "POST", body: form, signal: controller.signal });
+        const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+        if (!res.ok || !data.url) throw new Error(data.error ?? `Erreur du serveur (${res.status}).`);
+        url = data.url;
+      }
+      setClip((c) => (c ? { ...c, progress: 100, url } : c));
+    } catch (e) {
+      if (controller.signal.aborted) return;
+      setClip((c) => (c ? { ...c, error: e instanceof Error ? e.message : "L'envoi du clip a échoué." } : c));
+    }
+  }
+
+  async function onClip(file: File) {
+    if (!CLIP_TYPES[file.type]) return setError("Vidéo non prise en charge : utilise un MP4, un MOV ou un WebM.");
+    if (file.size > MAX_CLIP_BYTES) return setError("Le clip est trop lourd (200 Mo maximum). Raccourcis-le.");
+    try {
+      const { frame, duration: clipDuration } = await clipFrame(file);
+      setImage(null);
+      setPreviewImage(frame);
+      setClip({ name: file.name, duration: clipDuration, progress: 0, url: null, error: null });
+      void uploadClip(file);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Cette vidéo n'a pas pu être lue.");
+    }
+  }
 
   async function onImage(file: File | undefined) {
     setError(null);
     if (!file) return;
+    if (file.type.startsWith("video/")) return onClip(file);
+    uploadAbort.current?.abort();
+    setClip(null);
     try {
       const resized = await resizeImage(file);
       setImage(resized);
@@ -249,7 +355,9 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
 
   async function create() {
     setError(null);
-    if (!image) return setError("Choisis une image.");
+    if (!image && !clip) return setError("Choisis une photo ou une vidéo.");
+    if (clip && clip.error) return setError(`Le clip n'a pas été envoyé : ${clip.error} Choisis-le à nouveau.`);
+    if (clip && !clip.url) return setError(`Envoi du clip en cours (${clip.progress} %) : attends la fin avant de créer la vidéo.`);
     if (!musicFile && !music) return setError("Choisis une musique.");
     setElapsed(0);
     setBusy(true);
@@ -259,7 +367,8 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
     const timeout = window.setTimeout(() => controller.abort(), RENDER_TIMEOUT_MS);
     try {
       const form = new FormData();
-      form.set("image", image, "image.jpg");
+      if (clip?.url) form.set("clipUrl", clip.url);
+      else if (image) form.set("image", image, "image.jpg");
       form.set("text", text);
       form.set("title", title);
       if (templateId) form.set("templateId", templateId);
@@ -328,8 +437,11 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
           {preview.error && (
             <span className="absolute inset-x-1 top-1 rounded bg-red-950/90 px-1 py-1 text-center text-[10px] text-red-200">{preview.error}</span>
           )}
-          {!image && (
-            <label htmlFor="image" aria-label="Choisir une photo" className="absolute inset-0 cursor-pointer" />
+          {!image && !clip && (
+            <label htmlFor="image" aria-label="Choisir une photo ou une vidéo" className="absolute inset-0 cursor-pointer" />
+          )}
+          {clip && (
+            <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 text-[10px] font-semibold">▶ CLIP</span>
           )}
           {playing && (
             <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
@@ -340,7 +452,7 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
           <p className="text-sm text-zinc-400">Aperçu exact de la vidéo</p>
           <label htmlFor="image" className="flex min-h-12 cursor-pointer items-center justify-center rounded-xl bg-zinc-800 font-semibold">
-            {image ? "Changer la photo" : "Choisir une photo"}
+            {image || clip ? "Changer l'illustration" : "Photo ou vidéo"}
           </label>
           <button type="button" onClick={listen} disabled={!audioSrc} className="min-h-12 rounded-xl bg-white font-semibold text-black disabled:opacity-50">
             {playing ? `■ ${formatTime(position)} / ${formatTime(duration)}` : "▶ Lire l'aperçu"}
@@ -348,8 +460,17 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
           <p className="truncate text-xs text-zinc-500">
             🎵 {musicFile ? musicFile.name : music ? labelFor(music) : "aucune musique"} · {duration} s
           </p>
+          {clip && (
+            <p className={`text-xs ${clip.error ? "text-red-300" : clip.url ? "text-green-400" : "text-sky-300"}`}>
+              {clip.error
+                ? `Envoi échoué : ${clip.error}`
+                : clip.url
+                  ? `Clip envoyé ✓ (${Math.round(clip.duration)} s${clip.duration < duration ? ", en boucle" : ""})`
+                  : `Envoi du clip… ${clip.progress} %`}
+            </p>
+          )}
         </div>
-        <input ref={imageInputRef} id="image" type="file" accept="image/*" className="sr-only" onChange={(e) => onImage(e.target.files?.[0])} />
+        <input ref={imageInputRef} id="image" type="file" accept="image/*,video/mp4,video/quicktime,video/webm" className="sr-only" onChange={(e) => onImage(e.target.files?.[0])} />
       </section>
 
       <section className="flex flex-col gap-2">
@@ -422,7 +543,11 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
       <button type="button" onClick={create} disabled={busy} className={`${button} bg-white text-black`}>
         {busy ? `Création en cours… ${elapsed} s` : "Créer la vidéo"}
       </button>
-      {busy && <p className="-mt-3 text-center text-sm text-zinc-400">Ça prend en général 5 à 20 secondes.</p>}
+      {busy && (
+        <p className="-mt-3 text-center text-sm text-zinc-400">
+          {clip ? "Avec un clip, compte à peu près la durée de la vidéo (jusqu'à 2-3 min)." : "Ça prend en général 5 à 20 secondes."}
+        </p>
+      )}
 
       {video && (
         <section ref={videoRef} className="flex flex-col gap-3">

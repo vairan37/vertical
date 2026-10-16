@@ -51,6 +51,7 @@ app/
   templates/          CRUD des templates : liste (créer, dupliquer, par défaut) et éditeur [id]
   api/templates/preview/ GET : aperçu PNG d'une template (réglages en JSON dans ?s=)
   api/preview/        POST : aperçu exact de la page de création (même renderFrame, JPEG 540x960)
+  api/uploads/        envoi direct d'un clip vidéo vers Blob (URL présignée, OIDC) ; multipart en local
   api/files/[name]/   sert le stockage local (dev sans Vercel Blob)
   api/youtube/        search (GET ?q=) et audio (POST {id,start,length} -> MP3)
   youtube-picker.tsx  recherche YouTube dans la section Musique du formulaire
@@ -63,7 +64,8 @@ lib/
   source-image.ts     validation de la photo envoyée (partagée par render et preview)
   youtube.ts          recherche YouTube + extrait audio (15 à 90 s) via yt-dlp (cookies YOUTUBE_COOKIES)
   music.ts            liste/résolution des musiques (protection path traversal)
-  video.ts            appel ffmpeg
+  video.ts            appel ffmpeg : renderVideo (photo, segments par copie) et renderClip (clip
+                      vidéo : fond + clip cadré + calque texte transparent, encodé ~temps réel)
   db/schema.ts        tables Drizzle : templates, videos, publications, stats, social_accounts
   db/index.ts         connexion Postgres (driver pg, compatible Neon)
   storage.ts          Vercel Blob (ou disque local en dev)
@@ -130,6 +132,11 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       recherche + extrait 15 s via yt-dlp. Téléchargement bloqué sur IP serveur sans cookies
       (YOUTUBE_COOKIES). Testé ici : recherche OK, téléchargement non testable sans cookies.
       Ne pas ajouter de contournement anti-bot (rotation de clients, etc.).
+- [x] Illustration par photo OU clip vidéo : le clip part du navigateur directement vers Blob
+      (uploadPresigned + handleUploadPresigned/issueSignedToken, compatible OIDC ; 200 Mo max),
+      le rendu (/api/render, maxDuration 300 s) superpose fond, clip cadré (imageBox, sans coins
+      arrondis), calque PNG transparent (renderFrame overlayOnly). Clip trop court = en boucle ;
+      son du clip ignoré. Colonne source_video_url. Aperçu : image du clip extraite côté client.
 - [ ] Étape 2 : authentification (mot de passe unique, cookie httpOnly, limite de tentatives ;
       routes cron protégées par secret)
 - [ ] Étape 3 : publication (SocialProvider + simulation, écran de publication, Instagram, TikTok,

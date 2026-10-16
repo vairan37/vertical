@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { usesVercelBlob } from "@/lib/storage";
 import { listTemplates } from "@/lib/templates";
 import Creator, { type TemplateOption } from "./creator";
 
@@ -23,5 +24,5 @@ async function CreatorWithTemplates() {
     // Sans base, on crée quand même avec le look d'origine.
     console.error("Lecture des templates impossible", error);
   }
-  return <Creator templates={templates} />;
+  return <Creator templates={templates} blobUpload={usesVercelBlob()} />;
 }

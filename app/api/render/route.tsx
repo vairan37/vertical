@@ -1,15 +1,25 @@
-import { access } from "node:fs/promises";
+import { access, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import ffmpegPath from "ffmpeg-static";
 import { DbNotConfiguredError, getDb, videos } from "@/lib/db";
 import { listMusic, MAX_UPLOADED_MUSIC_BYTES, resolveMusic } from "@/lib/music";
 import { readSourceImage } from "@/lib/source-image";
-import { saveFile, StorageNotConfiguredError, usesVercelBlob } from "@/lib/storage";
+import {
+  downloadStoredFile,
+  isStoredUrl,
+  MAX_CLIP_BYTES,
+  saveFile,
+  StorageNotConfiguredError,
+  usesVercelBlob,
+} from "@/lib/storage";
 import { resolveTemplate } from "@/lib/templates";
 import { cookiesConfigured, ytDlpAvailable } from "@/lib/youtube";
 import { MAX_DURATION, MAX_TEXT_LENGTH, MIN_DURATION, renderFrame } from "@/lib/template";
-import { RenderError, renderVideo } from "@/lib/video";
+import { probeVideo, RenderError, renderClip, renderVideo } from "@/lib/video";
 
-export const maxDuration = 60;
+// 300 s : maximum du plan Hobby (Fluid compute). Un clip vidéo s'encode à peu près en temps réel.
+export const maxDuration = 300;
 
 const MAX_TITLE_LENGTH = 80;
 
@@ -25,8 +35,12 @@ export async function POST(request: Request) {
     return fail("Requête invalide : le formulaire n'a pas pu être lu (fichiers trop lourds ?).");
   }
 
-  const source = await readSourceImage(form.get("image"));
-  if ("error" in source) return fail(source.error);
+  // Illustration : une photo (envoyée dans la requête) ou un clip vidéo (déjà envoyé dans le
+  // stockage, trop lourd pour passer par ici).
+  const clipUrl = String(form.get("clipUrl") ?? "");
+  if (clipUrl && !isStoredUrl(clipUrl)) return fail("Le clip vidéo est introuvable. Renvoie-le.");
+  const source = clipUrl ? null : await readSourceImage(form.get("image"));
+  if (source && "error" in source) return fail(source.error);
 
   const text = String(form.get("text") ?? "").trim();
   const title = String(form.get("title") ?? "").trim().slice(0, MAX_TITLE_LENGTH) || null;
@@ -57,16 +71,35 @@ export async function POST(request: Request) {
     music = { path };
   }
 
+  let tmp: string | null = null;
   try {
     const template = await resolveTemplate(String(form.get("templateId") ?? "") || null);
-    const framePng = await renderFrame(source.image, text, template.settings);
-    const { mp4, cover } = await renderVideo({ framePng, music, start, duration });
-
     const id = crypto.randomUUID();
-    const ext = source.type === "image/png" ? "png" : "jpg";
-    const [video, sourceFile, coverFile] = await Promise.all([
+    let mp4: Buffer;
+    let cover: Buffer;
+    let imageUrl: string | null = null;
+
+    if (source) {
+      const framePng = await renderFrame(source.image, text, template.settings);
+      ({ mp4, cover } = await renderVideo({ framePng, music, start, duration }));
+      const ext = source.type === "image/png" ? "png" : "jpg";
+      imageUrl = (await saveFile(`images/${id}.${ext}`, source.buffer, source.type)).url;
+    } else {
+      tmp = await mkdtemp(join(tmpdir(), "clip-"));
+      const clipPath = join(tmp, "clip");
+      try {
+        await downloadStoredFile(clipUrl, clipPath, MAX_CLIP_BYTES);
+      } catch (error) {
+        console.error("Clip introuvable", error);
+        return fail("Le clip vidéo n'a pas pu être récupéré. Renvoie-le.");
+      }
+      const clip = await probeVideo(clipPath);
+      const overlayPng = await renderFrame(null, text, template.settings, { overlayOnly: true });
+      ({ mp4, cover } = await renderClip({ clipPath, clip, overlayPng, settings: template.settings, music, start, duration }));
+    }
+
+    const [video, coverFile] = await Promise.all([
       saveFile(`videos/${id}.mp4`, mp4, "video/mp4"),
-      saveFile(`images/${id}.${ext}`, source.buffer, source.type),
       saveFile(`covers/${id}-cover.jpg`, cover, "image/jpeg"),
     ]);
     await getDb().insert(videos).values({
@@ -75,8 +108,10 @@ export async function POST(request: Request) {
       text,
       videoUrl: video.url,
       downloadUrl: video.downloadUrl,
-      imageUrl: sourceFile.url,
+      // Pour un clip, l'« image source » est la couverture (la colonne est obligatoire).
+      imageUrl: imageUrl ?? coverFile.url,
       coverUrl: coverFile.url,
+      sourceVideoUrl: source ? null : clipUrl,
       musicName,
       duration,
       templateId: template.id,
@@ -88,9 +123,16 @@ export async function POST(request: Request) {
       return fail(error.message, 500);
     }
     if (error instanceof RenderError) {
-      return fail("La vidéo n'a pas pu être créée. Vérifie que la musique est un fichier audio valide.", 500);
+      return fail(
+        source
+          ? "La vidéo n'a pas pu être créée. Vérifie que la musique est un fichier audio valide."
+          : "La vidéo n'a pas pu être créée. Vérifie que le clip et la musique sont des fichiers valides.",
+        500,
+      );
     }
     return fail("La vidéo n'a pas pu être créée ou enregistrée (erreur inattendue du serveur).", 500);
+  } finally {
+    if (tmp) await rm(tmp, { recursive: true, force: true });
   }
 }
 

@@ -61,7 +61,7 @@ const PLACEHOLDER_RATIO = 4 / 3;
  *   (ce qui dépasse sur les côtés est rogné).
  * Toujours centrée horizontalement, centre vertical à imageY %.
  */
-function imageBox(settings: TemplateSettings, ratio: number) {
+export function imageBox(settings: TemplateSettings, ratio: number) {
   const k = settings.imageScale / 100;
   let w: number;
   let h: number;
@@ -86,6 +86,16 @@ function imageBox(settings: TemplateSettings, ratio: number) {
   };
 }
 
+export type FrameOptions = {
+  /**
+   * Calque seul (fond transparent, ni fond ni image) : dégradé + texte, superposé par ffmpeg
+   * à un clip vidéo.
+   */
+  overlayOnly?: boolean;
+  /** Coins arrondis d'une image réduite (désactivé pour les clips, que ffmpeg ne peut pas arrondir). */
+  rounded?: boolean;
+};
+
 /**
  * Génère l'image (PNG 1080x1920) de la vidéo.
  * @param image image source (data URL JPEG ou PNG et dimensions), ou null pour un emplacement
@@ -95,10 +105,12 @@ export async function renderFrame(
   image: SourceImage | null,
   text: string,
   settings: TemplateSettings,
+  { overlayOnly = false, rounded = true }: FrameOptions = {},
 ): Promise<Buffer> {
   const font = FONTS[settings.font];
   const fontData = await loadFont(settings.font);
   const box = imageBox(settings, image ? image.width / image.height : PLACEHOLDER_RATIO);
+  if (!rounded) box.radius = 0;
 
   // Bande du texte centrée sur textY % : le texte est centré verticalement dans cette bande.
   const half = Math.min(settings.textY, 100 - settings.textY);
@@ -113,10 +125,10 @@ export async function renderFrame(
           height: "100%",
           display: "flex",
           position: "relative",
-          backgroundColor: settings.backgroundColor,
+          backgroundColor: overlayOnly ? "transparent" : settings.backgroundColor,
         }}
       >
-        {image ? (
+        {overlayOnly ? null : image ? (
           // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
           <img
             src={image.dataUrl}
