@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import YoutubePicker from "./youtube-picker";
 
 const MAX_IMAGE_SIDE = 2000;
 const MAX_TEXT_LENGTH = 300;
@@ -133,6 +134,12 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
     }
     setMusicFile(file);
     setMusicFileUrl(URL.createObjectURL(file));
+  }
+
+  /** Extrait YouTube : il commence déjà au bon moment, donc départ à 0. */
+  function onYoutubeExcerpt(file: File) {
+    onMusicFile(file);
+    setStart(0);
   }
 
   function clearMusicFile() {
@@ -272,6 +279,7 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
           {musicFile ? "Choisir un autre fichier" : "ou envoyer un fichier audio (3 Mo max)"}
           <input type="file" accept="audio/*" className="sr-only" onChange={(e) => onMusicFile(e.target.files?.[0])} />
         </label>
+        <YoutubePicker onPick={onYoutubeExcerpt} />
 
         <label className="flex flex-col gap-1">
           <span>Départ dans la musique : {start} s</span>

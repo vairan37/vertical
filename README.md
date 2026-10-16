@@ -59,6 +59,32 @@ Sans token Blob, les fichiers vont dans `.data/files`.
 
 Pour ajouter des musiques : dépose des fichiers `.mp3` dans `public/music/` et redéploie.
 
+## Sons YouTube
+
+Dans « Créer », **Chercher un son sur YouTube** : tape un titre, choisis un résultat, indique le
+début de l'extrait (ex. `1:23`), puis « Utiliser cet extrait ». Le serveur récupère 15 s de son
+(MP3) avec [yt-dlp](https://github.com/yt-dlp/yt-dlp), téléchargé au build à une version figée et
+vérifiée (`scripts/fetch-yt-dlp.mjs`).
+
+La recherche marche sans configuration. **Le téléchargement exige des cookies YouTube** : YouTube
+bloque les serveurs (« Sign in to confirm you're not a bot »).
+
+1. Utilise un **compte Google secondaire** : YouTube peut restreindre un compte utilisé ainsi.
+2. Dans une **fenêtre de navigation privée**, connecte-toi à youtube.com avec ce compte.
+3. Exporte les cookies au format `cookies.txt` (Netscape) avec une extension comme
+   « Get cookies.txt LOCALLY », puis **ferme la fenêtre privée sans te déconnecter** (sinon
+   YouTube invalide les cookies). Voir la
+   [FAQ yt-dlp](https://github.com/yt-dlp/yt-dlp/wiki/Extractors#exporting-youtube-cookies).
+4. Vercel → Settings → Environment Variables → `YOUTUBE_COOKIES` = contenu du fichier (ou le
+   fichier en base64). Redéploie.
+5. Vérifie sur `/api/render` : `"youtube": "yt-dlp OK, cookies configurés"`.
+
+Les cookies expirent : si le message « les cookies YouTube ont sans doute expiré » apparaît,
+recommence les étapes 2 à 4. Pour mettre yt-dlp à jour (si YouTube casse le téléchargement),
+change `VERSION` et `SHA256` dans `scripts/fetch-yt-dlp.mjs`.
+
+Les plateformes peuvent rendre muette ou bloquer une vidéo contenant un son protégé.
+
 ## Templates
 
 L'onglet « Templates » permet de créer, modifier, dupliquer et supprimer des templates, et de

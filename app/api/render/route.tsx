@@ -5,6 +5,7 @@ import { listMusic, MAX_UPLOADED_MUSIC_BYTES, resolveMusic } from "@/lib/music";
 import { imageSize } from "@/lib/image-size";
 import { saveFile, StorageNotConfiguredError, usesVercelBlob } from "@/lib/storage";
 import { resolveTemplate } from "@/lib/templates";
+import { cookiesConfigured, ytDlpAvailable } from "@/lib/youtube";
 import { MAX_DURATION, MAX_TEXT_LENGTH, MIN_DURATION, renderFrame } from "@/lib/template";
 import { RenderError, renderVideo } from "@/lib/video";
 
@@ -114,6 +115,9 @@ export async function GET() {
       : process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID
         ? "Vercel Blob"
         : "non configuré",
+    youtube: (await ytDlpAvailable())
+      ? cookiesConfigured() ? "yt-dlp OK, cookies configurés" : "yt-dlp OK, cookies absents (téléchargement bloqué)"
+      : "yt-dlp absent",
     // Noms (jamais les valeurs) des variables liées à Blob, pour le diagnostic.
     variablesBlob: Object.keys(process.env).filter((k) => k.includes("BLOB")),
   });

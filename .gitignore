@@ -43,3 +43,6 @@ next-env.d.ts
 
 # stockage local de dev
 /.data
+
+# binaire yt-dlp téléchargé au build (scripts/fetch-yt-dlp.mjs)
+/bin

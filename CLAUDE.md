@@ -49,12 +49,15 @@ app/
   templates/          CRUD des templates : liste (créer, dupliquer, par défaut) et éditeur [id]
   api/templates/preview/ GET : aperçu PNG d'une template (réglages en JSON dans ?s=)
   api/files/[name]/   sert le stockage local (dev sans Vercel Blob)
+  api/youtube/        search (GET ?q=) et audio (POST {id,start,length} -> MP3)
+  youtube-picker.tsx  recherche YouTube dans la section Musique du formulaire
 lib/
   template.tsx        rendu de la frame (ImageResponse) à partir des réglages d'une template
   template-settings.ts réglages d'une template (positions, tailles, police, couleurs), polices,
                       valeurs par défaut et validation (parseSettings) ; partagé client/serveur
   templates.ts        lecture des templates, choix de celle à utiliser pour un rendu
   image-size.ts       dimensions d'un JPEG/PNG (cadrages pleine largeur / pleine hauteur)
+  youtube.ts          recherche YouTube + extrait audio 15 s via yt-dlp (cookies YOUTUBE_COOKIES)
   music.ts            liste/résolution des musiques (protection path traversal)
   video.ts            appel ffmpeg
   db/schema.ts        tables Drizzle : templates, videos, publications, stats, social_accounts
@@ -63,6 +66,7 @@ lib/
   videos.ts           lecture des vidéos avec leurs publications
 drizzle/              migrations SQL générées (ne pas modifier à la main)
 scripts/migrate.mjs   applique les migrations (ignoré si DATABASE_URL absente)
+scripts/fetch-yt-dlp.mjs télécharge bin/yt-dlp au build (version figée + SHA-256 vérifié ; bin/ ignoré par git)
 assets/fonts/         polices TTF statiques (OFL / Apache) ; ajouter une police = fichier ici +
                       entrée dans FONTS (lib/template-settings.ts). Pas de police variable (Satori).
 next.config.ts        serverExternalPackages + outputFileTracingIncludes (ffmpeg, musiques, police)
@@ -118,6 +122,10 @@ public/music/         musiques .mp3 incorporées dans les vidéos
 - [x] Page « Publiées » : grille des vidéos publiées + bloc Comptes lu dans social_accounts
       (jamais les tokens). « Connecter » explique ce qu'il faut préparer : l'OAuth réel arrive à
       l'étape 3 (routes à brancher sur ce bouton). « Déconnecter » supprime les tokens en base.
+- [x] Sons YouTube (choix de Victor, risques acceptés : CGU YouTube, droits, compte secondaire) :
+      recherche + extrait 15 s via yt-dlp. Téléchargement bloqué sur IP serveur sans cookies
+      (YOUTUBE_COOKIES). Testé ici : recherche OK, téléchargement non testable sans cookies.
+      Ne pas ajouter de contournement anti-bot (rotation de clients, etc.).
 - [ ] Étape 2 : authentification (mot de passe unique, cookie httpOnly, limite de tentatives ;
       routes cron protégées par secret)
 - [ ] Étape 3 : publication (SocialProvider + simulation, écran de publication, Instagram, TikTok,
