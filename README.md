@@ -41,6 +41,10 @@ Sans token Blob, les fichiers vont dans `.data/files`.
 
 ## Utilisation
 
+En haut de « Créer », l'**aperçu exact** (calculé par le même moteur que la vidéo finale) suit
+tes réglages : photo, texte, template. « ▶ Lire l'aperçu » joue la musique choisie (départ et
+durée) avec les fondus.
+
 1. Choisis une photo (réduite à 2000 px dans le navigateur avant l'envoi).
 2. Écris le texte (300 caractères max).
 3. Choisis une musique de `public/music/` ou envoie un fichier audio (3 Mo max), règle le point de

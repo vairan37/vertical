@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import ffmpegPath from "ffmpeg-static";
 import { DbNotConfiguredError, getDb, videos } from "@/lib/db";
 import { listMusic, MAX_UPLOADED_MUSIC_BYTES, resolveMusic } from "@/lib/music";
-import { imageSize } from "@/lib/image-size";
+import { readSourceImage } from "@/lib/source-image";
 import { saveFile, StorageNotConfiguredError, usesVercelBlob } from "@/lib/storage";
 import { resolveTemplate } from "@/lib/templates";
 import { cookiesConfigured, ytDlpAvailable } from "@/lib/youtube";
@@ -12,8 +12,6 @@ import { RenderError, renderVideo } from "@/lib/video";
 export const maxDuration = 60;
 
 const MAX_TITLE_LENGTH = 80;
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-const IMAGE_TYPES = ["image/jpeg", "image/png"];
 
 function fail(message: string, status = 400) {
   return Response.json({ error: message }, { status });
@@ -27,10 +25,8 @@ export async function POST(request: Request) {
     return fail("Requête invalide : le formulaire n'a pas pu être lu (fichiers trop lourds ?).");
   }
 
-  const image = form.get("image");
-  if (!(image instanceof File) || image.size === 0) return fail("Choisis une image.");
-  if (!IMAGE_TYPES.includes(image.type)) return fail("L'image doit être au format JPEG ou PNG.");
-  if (image.size > MAX_IMAGE_BYTES) return fail("L'image est trop lourde (4 Mo maximum).");
+  const source = await readSourceImage(form.get("image"));
+  if ("error" in source) return fail(source.error);
 
   const text = String(form.get("text") ?? "").trim();
   const title = String(form.get("title") ?? "").trim().slice(0, MAX_TITLE_LENGTH) || null;
@@ -62,19 +58,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const imageBuffer = Buffer.from(await image.arrayBuffer());
-    const size = imageSize(imageBuffer);
-    if (!size || size.width === 0 || size.height === 0) return fail("L'image n'a pas pu être lue (JPEG ou PNG attendu).");
-    const sourceImage = { dataUrl: `data:${image.type};base64,${imageBuffer.toString("base64")}`, ...size };
     const template = await resolveTemplate(String(form.get("templateId") ?? "") || null);
-    const framePng = await renderFrame(sourceImage, text, template.settings);
+    const framePng = await renderFrame(source.image, text, template.settings);
     const { mp4, cover } = await renderVideo({ framePng, music, start, duration });
 
     const id = crypto.randomUUID();
-    const ext = image.type === "image/png" ? "png" : "jpg";
-    const [video, source, coverFile] = await Promise.all([
+    const ext = source.type === "image/png" ? "png" : "jpg";
+    const [video, sourceFile, coverFile] = await Promise.all([
       saveFile(`videos/${id}.mp4`, mp4, "video/mp4"),
-      saveFile(`images/${id}.${ext}`, imageBuffer, image.type),
+      saveFile(`images/${id}.${ext}`, source.buffer, source.type),
       saveFile(`covers/${id}-cover.jpg`, cover, "image/jpeg"),
     ]);
     await getDb().insert(videos).values({
@@ -83,7 +75,7 @@ export async function POST(request: Request) {
       text,
       videoUrl: video.url,
       downloadUrl: video.downloadUrl,
-      imageUrl: source.url,
+      imageUrl: sourceFile.url,
       coverUrl: coverFile.url,
       musicName,
       duration,

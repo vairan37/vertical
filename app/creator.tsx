@@ -10,10 +10,13 @@ const MAX_MUSIC_BYTES = 3 * 1024 * 1024;
 const MIN_DURATION = 3;
 const MAX_DURATION = 90;
 
-/** Réduit l'image à 2000 px max et la convertit en JPEG (limite de ~4,5 Mo des requêtes Vercel). */
-async function resizeImage(file: File): Promise<Blob> {
+/** Côté max de la copie légère envoyée pour l'aperçu (affiché en 540x960). */
+const PREVIEW_IMAGE_SIDE = 1080;
+
+/** Réduit l'image (2000 px max par défaut) et la convertit en JPEG (limite ~4,5 Mo des requêtes Vercel). */
+async function resizeImage(file: Blob, maxSide = MAX_IMAGE_SIDE): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
@@ -39,6 +42,13 @@ function canShareVideo() {
 /** Délai max d'attente du serveur avant d'abandonner. */
 const RENDER_TIMEOUT_MS = 90_000;
 
+/** Durée des fondus simulés dans l'aperçu, en secondes (comme FADES.videoIn/Out du rendu). */
+const FADE = 0.4;
+
+function formatTime(s: number) {
+  return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+}
+
 function labelFor(name: string) {
   return name.replace(/\.mp3$/i, "").replace(/[-_]+/g, " ");
 }
@@ -47,7 +57,14 @@ export type TemplateOption = { id: string; name: string };
 
 export default function Creator({ templates }: { templates: TemplateOption[] }) {
   const [image, setImage] = useState<Blob | null>(null);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<Blob | null>(null);
+  const [preview, setPreview] = useState<{ url: string | null; loading: boolean; error: string | null }>({
+    url: null,
+    loading: true,
+    error: null,
+  });
+  const [playing, setPlaying] = useState(false);
+  const [position, setPosition] = useState(0);
   const [text, setText] = useState("");
   const [title, setTitle] = useState("");
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
@@ -66,6 +83,7 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
   const [musicFileUrl, setMusicFileUrl] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLElement>(null);
 
   // Affiche toute erreur JavaScript inattendue au lieu d'échouer en silence.
@@ -107,11 +125,48 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
       .catch(() => setError("Impossible de charger la liste des musiques."));
   }, []);
 
+  // Aperçu exact (même rendu que la vidéo), recalculé 0,5 s après la dernière modification.
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setPreview((p) => ({ ...p, loading: true, error: null }));
+      try {
+        const form = new FormData();
+        if (previewImage) form.set("image", previewImage, "apercu.jpg");
+        form.set("text", text);
+        if (templateId) form.set("templateId", templateId);
+        const res = await fetch("/api/preview", { method: "POST", body: form, signal: controller.signal });
+        if (!res.ok) {
+          const data = (await res.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(data?.error ?? "L'aperçu n'a pas pu être généré.");
+        }
+        const url = URL.createObjectURL(await res.blob());
+        setPreview((p) => {
+          if (p.url) URL.revokeObjectURL(p.url);
+          return { url, loading: false, error: null };
+        });
+      } catch (e) {
+        if (controller.signal.aborted) return;
+        setPreview((p) => ({ ...p, loading: false, error: e instanceof Error && !(e instanceof TypeError) ? e.message : "Aperçu indisponible (connexion ?)." }));
+      }
+    }, 500);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [previewImage, text, templateId]);
+
   // Libère les URL locales quand elles changent.
-  useEffect(() => () => { if (imageUrl) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
   useEffect(() => () => { if (musicFileUrl) URL.revokeObjectURL(musicFileUrl); }, [musicFileUrl]);
 
   const audioSrc = musicFileUrl ?? (music ? `/music/${encodeURIComponent(music)}` : undefined);
+
+  // Photo choisie avant la fin du chargement de la page (téléphone lent) : l'événement a été
+  // perdu, on la reprend au démarrage.
+  useEffect(() => {
+    const file = imageInputRef.current?.files?.[0];
+    if (file) void onImage(file);
+  }, []);
 
   async function onImage(file: File | undefined) {
     setError(null);
@@ -119,7 +174,7 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
     try {
       const resized = await resizeImage(file);
       setImage(resized);
-      setImageUrl(URL.createObjectURL(resized));
+      setPreviewImage(await resizeImage(resized, PREVIEW_IMAGE_SIDE));
     } catch {
       setError("Cette image n'a pas pu être lue. Essaie une photo JPEG ou PNG.");
     }
@@ -148,17 +203,40 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
     setMusicFileUrl(null);
   }
 
-  const stopTimer = useRef<number | undefined>(undefined);
+  const ticker = useRef<number | undefined>(undefined);
 
-  /** Joue l'extrait (départ + durée). Le déplacement attend le chargement : sinon iOS l'ignore. */
+  function stop() {
+    window.clearInterval(ticker.current);
+    audioRef.current?.pause();
+    setPlaying(false);
+    setPosition(0);
+  }
+
+  // Changer de musique, de départ ou de durée arrête la lecture en cours.
+  useEffect(() => stop, [audioSrc, start, duration]);
+
+  /**
+   * Joue la vidéo telle qu'elle sera : la musique depuis le départ choisi pendant la durée choisie,
+   * avec l'aperçu et les fondus. Le déplacement attend le chargement (sinon iOS l'ignore).
+   */
   function listen() {
     const audio = audioRef.current;
     if (!audio) return;
-    window.clearTimeout(stopTimer.current);
+    if (playing) return stop();
     const play = () => {
       audio.currentTime = start;
       audio.play().then(
-        () => { stopTimer.current = window.setTimeout(() => audio.pause(), duration * 1000); },
+        () => {
+          setPlaying(true);
+          setPosition(0);
+          window.clearInterval(ticker.current);
+          ticker.current = window.setInterval(() => {
+            const t = audio.currentTime - start;
+            // Fin de la vidéo, ou fin du son plus tôt (la vidéo continue alors en silence).
+            if (t >= duration || audio.ended) stop();
+            else setPosition(t);
+          }, 100);
+        },
         () => setError("La lecture de l'extrait a échoué sur cet appareil."),
       );
     };
@@ -228,20 +306,50 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-2">
-        <label className="font-semibold" htmlFor="image">Image</label>
-        <label
-          htmlFor="image"
-          className="flex aspect-[9/16] w-40 cursor-pointer items-center justify-center self-center overflow-hidden rounded-xl border border-dashed border-zinc-600 bg-zinc-900 text-center text-sm text-zinc-400"
-        >
-          {imageUrl ? (
+      {/* Aperçu fixe en haut : il reste visible pendant qu'on règle le texte, la template, la musique. */}
+      <section
+        aria-label="Aperçu"
+        className="sticky top-14 z-[5] -mx-4 -mt-2 flex gap-3 border-b border-zinc-800 bg-background/95 px-4 py-3 backdrop-blur"
+      >
+        <div className="relative aspect-[9/16] w-32 shrink-0 overflow-hidden rounded-xl bg-zinc-900">
+          {preview.url && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={imageUrl} alt="Image choisie" className="h-full w-full object-cover" />
-          ) : (
-            "Touche pour choisir une photo"
+            <img
+              src={preview.url}
+              alt="Aperçu de la vidéo"
+              // Fondus d'entrée et de sortie, comme dans la vidéo, pendant la lecture.
+              style={{ opacity: playing && (position < FADE || position > duration - FADE) ? 0.15 : 1 }}
+              className={`h-full w-full object-cover transition-opacity duration-300 ${preview.loading ? "opacity-60" : ""}`}
+            />
           )}
-        </label>
-        <input id="image" type="file" accept="image/*" className="sr-only" onChange={(e) => onImage(e.target.files?.[0])} />
+          {preview.loading && (
+            <span className="absolute inset-x-0 top-1 text-center text-[10px] text-zinc-300">Mise à jour…</span>
+          )}
+          {preview.error && (
+            <span className="absolute inset-x-1 top-1 rounded bg-red-950/90 px-1 py-1 text-center text-[10px] text-red-200">{preview.error}</span>
+          )}
+          {!image && (
+            <label htmlFor="image" aria-label="Choisir une photo" className="absolute inset-0 cursor-pointer" />
+          )}
+          {playing && (
+            <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
+              <div className="h-full bg-white" style={{ width: `${Math.min(100, (position / duration) * 100)}%` }} />
+            </div>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
+          <p className="text-sm text-zinc-400">Aperçu exact de la vidéo</p>
+          <label htmlFor="image" className="flex min-h-12 cursor-pointer items-center justify-center rounded-xl bg-zinc-800 font-semibold">
+            {image ? "Changer la photo" : "Choisir une photo"}
+          </label>
+          <button type="button" onClick={listen} disabled={!audioSrc} className="min-h-12 rounded-xl bg-white font-semibold text-black disabled:opacity-50">
+            {playing ? `■ ${formatTime(position)} / ${formatTime(duration)}` : "▶ Lire l'aperçu"}
+          </button>
+          <p className="truncate text-xs text-zinc-500">
+            🎵 {musicFile ? musicFile.name : music ? labelFor(music) : "aucune musique"} · {duration} s
+          </p>
+        </div>
+        <input ref={imageInputRef} id="image" type="file" accept="image/*" className="sr-only" onChange={(e) => onImage(e.target.files?.[0])} />
       </section>
 
       <section className="flex flex-col gap-2">
@@ -305,7 +413,7 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
         </label>
         <audio ref={audioRef} src={audioSrc} preload="metadata" />
         <button type="button" onClick={listen} disabled={!audioSrc} className={`${button} bg-zinc-800`}>
-          Écouter l&apos;extrait
+          {playing ? "■ Arrêter" : "▶ Écouter l'extrait"}
         </button>
       </section>
 

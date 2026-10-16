@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
     ],
     "/api/music": ["./public/music/**/*.mp3"],
     "/api/templates/preview": ["./assets/fonts/**/*"],
+    "/api/preview": ["./assets/fonts/**/*", "./node_modules/ffmpeg-static/ffmpeg"],
     "/api/youtube/search": ["./bin/yt-dlp"],
     "/api/youtube/audio": ["./bin/yt-dlp", "./node_modules/ffmpeg-static/ffmpeg"],
   },

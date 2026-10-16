@@ -50,6 +50,7 @@ app/
                       grille des vidéos publiées sur au moins un réseau
   templates/          CRUD des templates : liste (créer, dupliquer, par défaut) et éditeur [id]
   api/templates/preview/ GET : aperçu PNG d'une template (réglages en JSON dans ?s=)
+  api/preview/        POST : aperçu exact de la page de création (même renderFrame, JPEG 540x960)
   api/files/[name]/   sert le stockage local (dev sans Vercel Blob)
   api/youtube/        search (GET ?q=) et audio (POST {id,start,length} -> MP3)
   youtube-picker.tsx  recherche YouTube dans la section Musique du formulaire
@@ -59,6 +60,7 @@ lib/
                       valeurs par défaut et validation (parseSettings) ; partagé client/serveur
   templates.ts        lecture des templates, choix de celle à utiliser pour un rendu
   image-size.ts       dimensions d'un JPEG/PNG (cadrages pleine largeur / pleine hauteur)
+  source-image.ts     validation de la photo envoyée (partagée par render et preview)
   youtube.ts          recherche YouTube + extrait audio (15 à 90 s) via yt-dlp (cookies YOUTUBE_COOKIES)
   music.ts            liste/résolution des musiques (protection path traversal)
   video.ts            appel ffmpeg

@@ -26,6 +26,30 @@ function run(bin: string, args: string[]): Promise<void> {
   });
 }
 
+/** Frame PNG -> JPEG 540x960 (couverture de la grille, aperçu de la page de création). */
+function pngToJpeg(ffmpeg: string, input: string, output: string) {
+  return run(ffmpeg, [
+    "-hide_banner", "-loglevel", "error",
+    "-i", input,
+    "-vf", `scale=${VIDEO_WIDTH / 2}:${VIDEO_HEIGHT / 2}`,
+    "-q:v", "4",
+    "-y", output,
+  ]);
+}
+
+/** Convertit une frame PNG en JPEG réduit, sans passer par une vidéo. */
+export async function frameToJpeg(framePng: Buffer): Promise<Buffer> {
+  if (!ffmpegPath) throw new RenderError("ffmpeg est introuvable sur le serveur.");
+  const dir = await mkdtemp(join(tmpdir(), "vertical-"));
+  try {
+    await writeFile(join(dir, "frame.png"), framePng);
+    await pngToJpeg(ffmpegPath, join(dir, "frame.png"), join(dir, "frame.jpg"));
+    return await readFile(join(dir, "frame.jpg"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 /**
  * Assemble l'image et la musique en MP4 (H.264 + AAC, 1080x1920, 30 fps), et produit aussi la
  * couverture (la frame en JPEG 540x960) pour la grille « Mes vidéos ».
@@ -121,14 +145,7 @@ export async function renderVideo({ framePng, music, start, duration }: RenderOp
       "-y", outPath,
     ]);
 
-    await run(ffmpegPath, [
-      "-hide_banner", "-loglevel", "error",
-      "-i", framePath,
-      "-vf", `scale=${VIDEO_WIDTH / 2}:${VIDEO_HEIGHT / 2}`,
-      "-q:v", "4",
-      "-y", coverPath,
-    ]);
-
+    await pngToJpeg(ffmpeg, framePath, coverPath);
     return { mp4: await readFile(outPath), cover: await readFile(coverPath) };
   } finally {
     await rm(dir, { recursive: true, force: true });
