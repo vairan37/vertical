@@ -14,8 +14,8 @@ import ffmpegPath from "ffmpeg-static";
 
 export const YT_DLP_PATH = join(process.cwd(), "bin", "yt-dlp");
 
-/** Longueur max d'un extrait, en secondes (= durée max d'une vidéo). */
-export const EXCERPT_MAX = 15;
+/** Longueur max d'un extrait, en secondes (= durée max d'une vidéo ; 90 s ≈ 1,4 Mo en MP3). */
+export const EXCERPT_MAX = 90;
 /** On refuse les vidéos trop longues (mix d'une heure…) pour garder un téléchargement léger. */
 const MAX_SOURCE_DURATION = 20 * 60;
 
@@ -163,7 +163,7 @@ export async function youtubeExcerpt(
         "-ss", start.toFixed(3),
         "-t", Math.min(length, EXCERPT_MAX).toFixed(3),
         "-i", join(dir, source),
-        "-vn", "-c:a", "libmp3lame", "-b:a", "160k",
+        "-vn", "-c:a", "libmp3lame", "-b:a", "128k",
         "-y", mp3Path,
       ],
       20_000,

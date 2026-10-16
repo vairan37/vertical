@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   const title = String(form.get("title") ?? "").trim().slice(0, MAX_TITLE_LENGTH) || null;
   if (text.length > MAX_TEXT_LENGTH) return fail(`Le texte dépasse ${MAX_TEXT_LENGTH} caractères.`);
 
-  const duration = Number(form.get("duration"));
+  const duration = Math.round(Number(form.get("duration")));
   if (!Number.isFinite(duration) || duration < MIN_DURATION || duration > MAX_DURATION) {
     return fail(`La durée doit être comprise entre ${MIN_DURATION} et ${MAX_DURATION} secondes.`);
   }

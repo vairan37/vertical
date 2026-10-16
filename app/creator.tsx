@@ -8,7 +8,7 @@ const MAX_IMAGE_SIDE = 2000;
 const MAX_TEXT_LENGTH = 300;
 const MAX_MUSIC_BYTES = 3 * 1024 * 1024;
 const MIN_DURATION = 3;
-const MAX_DURATION = 15;
+const MAX_DURATION = 90;
 
 /** Réduit l'image à 2000 px max et la convertit en JPEG (limite de ~4,5 Mo des requêtes Vercel). */
 async function resizeImage(file: File): Promise<Blob> {
@@ -136,10 +136,11 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
     setMusicFileUrl(URL.createObjectURL(file));
   }
 
-  /** Extrait YouTube : il commence déjà au bon moment, donc départ à 0. */
-  function onYoutubeExcerpt(file: File) {
+  /** Extrait YouTube : il commence déjà au bon moment (départ à 0) et fixe la durée de la vidéo. */
+  function onYoutubeExcerpt(file: File, length: number) {
     onMusicFile(file);
     setStart(0);
+    setDuration(Math.min(MAX_DURATION, Math.max(MIN_DURATION, length)));
   }
 
   function clearMusicFile() {
@@ -147,12 +148,25 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
     setMusicFileUrl(null);
   }
 
+  const stopTimer = useRef<number | undefined>(undefined);
+
+  /** Joue l'extrait (départ + durée). Le déplacement attend le chargement : sinon iOS l'ignore. */
   function listen() {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.currentTime = start;
-    void audio.play();
-    window.setTimeout(() => audio.pause(), duration * 1000);
+    window.clearTimeout(stopTimer.current);
+    const play = () => {
+      audio.currentTime = start;
+      audio.play().then(
+        () => { stopTimer.current = window.setTimeout(() => audio.pause(), duration * 1000); },
+        () => setError("La lecture de l'extrait a échoué sur cet appareil."),
+      );
+    };
+    if (audio.readyState >= 1) play();
+    else {
+      audio.addEventListener("loadedmetadata", play, { once: true });
+      audio.load();
+    }
   }
 
   async function create() {
@@ -264,7 +278,7 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
         <label className="font-semibold" htmlFor="music">Musique</label>
         {musicFile ? (
           <div className="flex items-center gap-3">
-            <span className="flex-1 truncate text-zinc-300">{musicFile.name}</span>
+            <span className="flex-1 truncate text-zinc-300">🎵 {musicFile.name}</span>
             <button type="button" onClick={clearMusicFile} className="rounded-xl bg-zinc-800 px-4 py-3">Retirer</button>
           </div>
         ) : (
@@ -289,7 +303,7 @@ export default function Creator({ templates }: { templates: TemplateOption[] }) 
           <span>Durée de la vidéo : {duration} s</span>
           <input type="range" min={MIN_DURATION} max={MAX_DURATION} step={1} value={duration} onChange={(e) => setDuration(Number(e.target.value))} className="h-10" />
         </label>
-        <audio ref={audioRef} src={audioSrc} preload="none" />
+        <audio ref={audioRef} src={audioSrc} preload="metadata" />
         <button type="button" onClick={listen} disabled={!audioSrc} className={`${button} bg-zinc-800`}>
           Écouter l&apos;extrait
         </button>

@@ -44,7 +44,7 @@ Sans token Blob, les fichiers vont dans `.data/files`.
 1. Choisis une photo (réduite à 2000 px dans le navigateur avant l'envoi).
 2. Écris le texte (300 caractères max).
 3. Choisis une musique de `public/music/` ou envoie un fichier audio (3 Mo max), règle le point de
-   départ et la durée (3 à 15 s).
+   départ et la durée (3 à 90 s, la limite des Reels publiés par l'API Instagram).
 4. « Créer la vidéo » : le serveur génère un MP4 1080x1920 (H.264 + AAC, 30 fps), l'enregistre et
    l'ajoute à « Mes vidéos ».
 5. « Mes vidéos » : grille des couvertures avec leur nom (comme un profil TikTok) et l'état
@@ -62,8 +62,9 @@ Pour ajouter des musiques : dépose des fichiers `.mp3` dans `public/music/` et 
 ## Sons YouTube
 
 Dans « Créer », **Chercher un son sur YouTube** : tape un titre, choisis un résultat, indique le
-début de l'extrait (ex. `1:23`), puis « Utiliser cet extrait ». Le serveur récupère 15 s de son
-(MP3) avec [yt-dlp](https://github.com/yt-dlp/yt-dlp), téléchargé au build à une version figée et
+début de l'extrait (minutes et secondes), sa durée (15 s par défaut, jusqu'à 90 s), puis
+« Utiliser ». Le serveur récupère l'extrait en MP3 et la durée de la vidéo s'aligne dessus. Il
+utilise [yt-dlp](https://github.com/yt-dlp/yt-dlp), téléchargé au build à une version figée et
 vérifiée (`scripts/fetch-yt-dlp.mjs`).
 
 La recherche marche sans configuration. **Le téléchargement exige des cookies YouTube** : YouTube

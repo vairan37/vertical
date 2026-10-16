@@ -15,7 +15,9 @@ simple qui fonctionne.**
 - Next.js 16 (App Router, TypeScript strict, Tailwind v4, Turbopack, `cacheComponents` activé)
 - Hébergement Vercel, base Postgres (Neon) + Drizzle ORM (étape 1), stockage Vercel Blob (étape 1)
 - Rendu vidéo côté serveur : frame via `ImageResponse` (`next/og`), puis `ffmpeg-static`
-  assemble image + musique en MP4 (H.264 + AAC, 1080x1920, 30 fps, 3 à 15 s)
+  assemble image + musique en MP4 (H.264 + AAC, 1080x1920, 30 fps, 3 à 90 s). L'image étant fixe,
+  lib/video.ts encode 3 segments courts (fondu d'entrée, image fixe, fondu de sortie) et les
+  enchaîne par copie (concat) : 90 s de vidéo en ~6 s au lieu de ~70 s sur 1 cœur.
 
 ## Commandes
 
@@ -57,7 +59,7 @@ lib/
                       valeurs par défaut et validation (parseSettings) ; partagé client/serveur
   templates.ts        lecture des templates, choix de celle à utiliser pour un rendu
   image-size.ts       dimensions d'un JPEG/PNG (cadrages pleine largeur / pleine hauteur)
-  youtube.ts          recherche YouTube + extrait audio 15 s via yt-dlp (cookies YOUTUBE_COOKIES)
+  youtube.ts          recherche YouTube + extrait audio (15 à 90 s) via yt-dlp (cookies YOUTUBE_COOKIES)
   music.ts            liste/résolution des musiques (protection path traversal)
   video.ts            appel ffmpeg
   db/schema.ts        tables Drizzle : templates, videos, publications, stats, social_accounts

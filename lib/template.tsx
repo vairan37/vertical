@@ -13,7 +13,8 @@ export const VIDEO_WIDTH = 1080;
 export const VIDEO_HEIGHT = 1920;
 export const VIDEO_FPS = 30;
 export const MIN_DURATION = 3;
-export const MAX_DURATION = 15;
+/** 90 s : durée max d'un Reel publié par l'API Instagram. */
+export const MAX_DURATION = 90;
 export const MAX_TEXT_LENGTH = 300;
 
 /** Fondus appliqués par ffmpeg, en secondes. */

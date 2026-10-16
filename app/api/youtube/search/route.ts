@@ -1,4 +1,4 @@
-import { searchYoutube, YoutubeError } from "@/lib/youtube";
+import { cookiesConfigured, searchYoutube, YoutubeError } from "@/lib/youtube";
 
 export const maxDuration = 30;
 
@@ -6,7 +6,8 @@ export const maxDuration = 30;
 export async function GET(request: Request) {
   const q = new URL(request.url).searchParams.get("q") ?? "";
   try {
-    return Response.json({ results: await searchYoutube(q) });
+    // downloadReady : sans cookies, YouTube bloquera le téléchargement de l'extrait.
+    return Response.json({ results: await searchYoutube(q), downloadReady: cookiesConfigured() });
   } catch (error) {
     const message = error instanceof YoutubeError ? error.message : "La recherche YouTube a échoué.";
     return Response.json({ error: message }, { status: 502 });
