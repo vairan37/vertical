@@ -21,13 +21,35 @@ npm run lint
 npm run build
 ```
 
+## Base de données et stockage
+
+- Base Postgres (Neon) via Drizzle ORM. Les migrations (`drizzle/`) sont appliquées automatiquement
+  à chaque `npm run build`, donc à chaque déploiement Vercel.
+- Vidéos et images sources dans Vercel Blob (store **public**).
+
+Configuration sur Vercel (une seule fois) :
+
+1. Projet Vercel → onglet **Storage** → **Create Database** → **Neon** → relie-le au projet
+   (Production et Preview). `DATABASE_URL` est ajoutée automatiquement.
+2. Onglet **Storage** → **Create** → **Blob** → accès **Public** → relie-le au projet.
+   `BLOB_READ_WRITE_TOKEN` est ajoutée automatiquement.
+3. Redéploie, puis ouvre `/api/render` : tu dois voir `"base":"configurée"` et
+   `"stockage":"Vercel Blob"`.
+
+En local : copie `.env.example` en `.env.local` et renseigne `DATABASE_URL` (Neon ou Postgres local).
+Sans token Blob, les fichiers vont dans `.data/files`.
+
 ## Utilisation
 
 1. Choisis une photo (réduite à 2000 px dans le navigateur avant l'envoi).
 2. Écris le texte (300 caractères max).
 3. Choisis une musique de `public/music/` ou envoie un fichier audio (3 Mo max), règle le point de
    départ et la durée (3 à 15 s).
-4. « Créer la vidéo » : le serveur génère un MP4 1080x1920 (H.264 + AAC, 30 fps).
+4. « Créer la vidéo » : le serveur génère un MP4 1080x1920 (H.264 + AAC, 30 fps), l'enregistre et
+   l'ajoute à « Mes vidéos ».
+5. « Mes vidéos » : historique avec le statut Instagram / TikTok de chaque vidéo. En attendant la
+   publication automatique, « Marquer publiée » indique à la main ce qui est en ligne ; une alerte
+   signale une vidéo publiée sur un seul réseau.
 
 Pour ajouter des musiques : dépose des fichiers `.mp3` dans `public/music/` et redéploie.
 Pour changer le look des vidéos : modifie uniquement `lib/template.tsx`.

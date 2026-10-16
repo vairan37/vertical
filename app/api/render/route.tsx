@@ -1,6 +1,8 @@
 import { access } from "node:fs/promises";
 import ffmpegPath from "ffmpeg-static";
+import { DbNotConfiguredError, getDb, videos } from "@/lib/db";
 import { listMusic, MAX_UPLOADED_MUSIC_BYTES, resolveMusic } from "@/lib/music";
+import { saveFile, StorageNotConfiguredError } from "@/lib/storage";
 import { MAX_DURATION, MAX_TEXT_LENGTH, MIN_DURATION, renderFrame } from "@/lib/template";
 import { RenderError, renderVideo } from "@/lib/video";
 
@@ -40,34 +42,51 @@ export async function POST(request: Request) {
   }
 
   let music: { path: string } | { data: Buffer };
+  let musicName: string;
   const musicFile = form.get("musicFile");
   if (musicFile instanceof File && musicFile.size > 0) {
     if (musicFile.size > MAX_UPLOADED_MUSIC_BYTES) return fail("La musique est trop lourde (3 Mo maximum).");
     if (musicFile.type && !musicFile.type.startsWith("audio/")) return fail("Le fichier de musique n'est pas un fichier audio.");
     music = { data: Buffer.from(await musicFile.arrayBuffer()) };
+    musicName = musicFile.name || "fichier envoyé";
   } else {
-    const path = await resolveMusic(String(form.get("music") ?? ""));
+    musicName = String(form.get("music") ?? "");
+    const path = await resolveMusic(musicName);
     if (!path) return fail("Choisis une musique.");
     music = { path };
   }
 
   try {
-    const imageDataUrl = `data:${image.type};base64,${Buffer.from(await image.arrayBuffer()).toString("base64")}`;
+    const imageBuffer = Buffer.from(await image.arrayBuffer());
+    const imageDataUrl = `data:${image.type};base64,${imageBuffer.toString("base64")}`;
     const framePng = await renderFrame(imageDataUrl, text);
     const mp4 = await renderVideo({ framePng, music, start, duration });
-    return new Response(new Uint8Array(mp4), {
-      headers: {
-        "Content-Type": "video/mp4",
-        "Content-Length": String(mp4.length),
-        "Cache-Control": "no-store",
-      },
+
+    const id = crypto.randomUUID();
+    const ext = image.type === "image/png" ? "png" : "jpg";
+    const [video, source] = await Promise.all([
+      saveFile(`videos/${id}.mp4`, mp4, "video/mp4"),
+      saveFile(`images/${id}.${ext}`, imageBuffer, image.type),
+    ]);
+    await getDb().insert(videos).values({
+      id,
+      text,
+      videoUrl: video.url,
+      downloadUrl: video.downloadUrl,
+      imageUrl: source.url,
+      musicName,
+      duration,
     });
+    return Response.json({ id, videoUrl: video.url, downloadUrl: video.downloadUrl });
   } catch (error) {
-    console.error("Échec du rendu vidéo", error);
+    console.error("Échec de la création de la vidéo", error);
+    if (error instanceof DbNotConfiguredError || error instanceof StorageNotConfiguredError) {
+      return fail(error.message, 500);
+    }
     if (error instanceof RenderError) {
       return fail("La vidéo n'a pas pu être créée. Vérifie que la musique est un fichier audio valide.", 500);
     }
-    return fail("La vidéo n'a pas pu être créée (erreur inattendue du serveur).", 500);
+    return fail("La vidéo n'a pas pu être créée ou enregistrée (erreur inattendue du serveur).", 500);
   }
 }
 
@@ -78,5 +97,7 @@ export async function GET() {
   return Response.json({
     ffmpeg: ffmpeg ? "OK" : "introuvable",
     musiques: music.length ? music : "aucune",
+    base: process.env.DATABASE_URL ? "configurée" : "non configurée",
+    stockage: process.env.BLOB_READ_WRITE_TOKEN ? "Vercel Blob" : process.env.VERCEL ? "non configuré" : "local (.data)",
   });
 }

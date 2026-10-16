@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 const MAX_IMAGE_SIDE = 2000;
@@ -52,7 +53,10 @@ export default function Creator() {
   const [duration, setDuration] = useState(8);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [video, setVideo] = useState<{ blob: Blob; url: string } | null>(null);
+  const [video, setVideo] = useState<{ id: string; url: string; downloadUrl: string } | null>(null);
+  // Copie locale de la vidéo, préchargée pour que « Partager » réponde immédiatement
+  // (iOS refuse le partage s'il y a un téléchargement entre le toucher et l'appel).
+  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [musicFileUrl, setMusicFileUrl] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -100,7 +104,6 @@ export default function Creator() {
 
   // Libère les URL locales quand elles changent.
   useEffect(() => () => { if (imageUrl) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
-  useEffect(() => () => { if (video) URL.revokeObjectURL(video.url); }, [video]);
   useEffect(() => () => { if (musicFileUrl) URL.revokeObjectURL(musicFileUrl); }, [musicFileUrl]);
 
   const audioSrc = musicFileUrl ?? (music ? `/music/${encodeURIComponent(music)}` : undefined);
@@ -148,6 +151,7 @@ export default function Creator() {
     setElapsed(0);
     setBusy(true);
     setVideo(null);
+    setVideoBlob(null);
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), RENDER_TIMEOUT_MS);
     try {
@@ -163,8 +167,12 @@ export default function Creator() {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error ?? `Erreur du serveur (${res.status}).`);
       }
-      const blob = await res.blob();
-      setVideo({ blob, url: URL.createObjectURL(blob) });
+      const data = (await res.json()) as { id: string; videoUrl: string; downloadUrl: string };
+      setVideo({ id: data.id, url: data.videoUrl, downloadUrl: data.downloadUrl });
+      fetch(data.videoUrl)
+        .then((r) => (r.ok ? r.blob() : null))
+        .then(setVideoBlob)
+        .catch(() => setVideoBlob(null));
     } catch (e) {
       if (controller.signal.aborted) setError("Le serveur met trop de temps à répondre. Réessaie.");
       else if (e instanceof TypeError) setError("Connexion impossible. Vérifie ton réseau.");
@@ -176,8 +184,8 @@ export default function Creator() {
   }
 
   async function share() {
-    if (!video) return;
-    const file = new File([video.blob], "vertical.mp4", { type: "video/mp4" });
+    if (!videoBlob) return;
+    const file = new File([videoBlob], "vertical.mp4", { type: "video/mp4" });
     try {
       await navigator.share({ files: [file] });
     } catch (e) {
@@ -268,12 +276,15 @@ export default function Creator() {
         <section ref={videoRef} className="flex flex-col gap-3">
           <p className="font-semibold text-green-400">Vidéo créée ✓</p>
           <video src={video.url} controls playsInline preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black" />
-          <a href={video.url} download="vertical.mp4" className={`${button} bg-zinc-800 text-center`}>
+          <Link href="/videos" className={`${button} bg-white text-center text-black`}>
+            Voir dans Mes vidéos
+          </Link>
+          <a href={video.downloadUrl} download="vertical.mp4" className={`${button} bg-zinc-800 text-center`}>
             Télécharger
           </a>
           {canShare && (
-            <button type="button" onClick={share} className={`${button} bg-zinc-800`}>
-              Partager
+            <button type="button" onClick={share} disabled={!videoBlob} className={`${button} bg-zinc-800`}>
+              {videoBlob ? "Partager" : "Préparation du partage…"}
             </button>
           )}
         </section>
