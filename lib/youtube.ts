@@ -35,20 +35,32 @@ export async function ytDlpAvailable() {
   return access(YT_DLP_PATH).then(() => true, () => false);
 }
 
+/** Vrai si YOUTUBE_COOKIES contient au moins un cookie YouTube lisible. */
 export function cookiesConfigured() {
-  return Boolean(process.env.YOUTUBE_COOKIES?.trim());
+  return cookieFileContent() !== null;
 }
 
 /**
- * Contenu du fichier cookies (format Netscape). Accepté tel quel ou encodé en base64,
- * au cas où les retours à la ligne passeraient mal dans la variable d'environnement.
+ * Remet chaque ligne de cookie au format Netscape (7 colonnes séparées par des tabulations) :
+ * un copier-coller transforme souvent les tabulations en espaces. Les commentaires sont ignorés.
  */
+export function normalizeCookies(text: string): string | null {
+  const lines = text
+    .replace(/\\n/g, "\n")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#"))
+    .map((l) => l.split(/\s+/))
+    .filter((cols) => cols.length >= 7 && /youtube\.com|google\.com/.test(cols[0]))
+    .map((cols) => [...cols.slice(0, 6), cols.slice(6).join(" ")].join("\t"));
+  return lines.length ? `# Netscape HTTP Cookie File\n${lines.join("\n")}\n` : null;
+}
+
+/** Contenu du fichier cookies : accepté tel quel (tabulations ou espaces) ou encodé en base64. */
 function cookieFileContent(): string | null {
   const raw = process.env.YOUTUBE_COOKIES?.trim();
   if (!raw) return null;
-  if (raw.includes("\t")) return raw.replace(/\\n/g, "\n") + "\n";
-  const decoded = Buffer.from(raw, "base64").toString("utf8");
-  return decoded.includes("\t") ? decoded : null;
+  return normalizeCookies(raw) ?? normalizeCookies(Buffer.from(raw, "base64").toString("utf8"));
 }
 
 function run(bin: string, args: string[], timeout: number): Promise<string> {
