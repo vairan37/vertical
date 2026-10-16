@@ -62,7 +62,7 @@ async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["para
         <p>Créée le {dateFormat.format(video.createdAt)}</p>
         {video.text && <p className="whitespace-pre-wrap">Texte : {video.text}</p>}
         <p>Durée : {video.duration} s</p>
-        <p>Musique : {video.musicName.replace(/\.mp3$/i, "")}</p>
+        <p>Musique : {video.musicName ? video.musicName.replace(/\.mp3$/i, "") : "aucune (vidéo muette)"}</p>
         <p>Template : {video.templateName ?? "—"}</p>
       </section>
     </div>

@@ -4,6 +4,7 @@ const TYPES: Record<string, string> = {
   mp4: "video/mp4",
   mov: "video/quicktime",
   webm: "video/webm",
+  gif: "image/gif",
   jpg: "image/jpeg",
   png: "image/png",
 };

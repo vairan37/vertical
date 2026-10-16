@@ -1,7 +1,9 @@
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { FONTS, type FontId, type TemplateSettings } from "./template-settings";
+import { FONTS, imageBox, type FontId, type TemplateSettings } from "./template-settings";
+
+export { imageBox };
 
 /*
  * Rendu d'une frame de vidéo à partir des réglages d'une template (lib/template-settings.ts).
@@ -9,8 +11,8 @@ import { FONTS, type FontId, type TemplateSettings } from "./template-settings";
  * l'utilisateur (positions, tailles, police, fond) vient de TemplateSettings.
  */
 
-export const VIDEO_WIDTH = 1080;
-export const VIDEO_HEIGHT = 1920;
+export { VIDEO_HEIGHT, VIDEO_WIDTH } from "./template-settings";
+import { VIDEO_HEIGHT, VIDEO_WIDTH } from "./template-settings";
 export const VIDEO_FPS = 30;
 export const MIN_DURATION = 3;
 /** 90 s : durée max d'un Reel publié par l'API Instagram. */
@@ -52,39 +54,6 @@ export type SourceImage = { dataUrl: string; width: number; height: number };
 
 /** Format de l'emplacement factice de l'aperçu (photo en paysage 4:3, pour voir les bandes). */
 const PLACEHOLDER_RATIO = 4 / 3;
-
-/**
- * Boîte de l'image dans la vidéo, selon le cadrage :
- * - cover : cadre 9:16 (recadrage) ;
- * - width : largeur = imageScale % de la vidéo, hauteur selon le format de la photo ;
- * - height : hauteur = imageScale % de la vidéo, largeur selon le format de la photo
- *   (ce qui dépasse sur les côtés est rogné).
- * Toujours centrée horizontalement, centre vertical à imageY %.
- */
-export function imageBox(settings: TemplateSettings, ratio: number) {
-  const k = settings.imageScale / 100;
-  let w: number;
-  let h: number;
-  if (settings.imageFit === "width") {
-    w = VIDEO_WIDTH * k;
-    h = w / ratio;
-  } else if (settings.imageFit === "height") {
-    h = VIDEO_HEIGHT * k;
-    w = h * ratio;
-  } else {
-    w = VIDEO_WIDTH * k;
-    h = VIDEO_HEIGHT * k;
-  }
-  const fullScreen = settings.imageFit === "cover" && k >= 1;
-  return {
-    width: Math.round(w),
-    height: Math.round(h),
-    left: fullScreen ? 0 : Math.round((VIDEO_WIDTH - w) / 2),
-    top: fullScreen ? 0 : Math.round((VIDEO_HEIGHT * settings.imageY) / 100 - h / 2),
-    // Coins arrondis seulement pour une image réduite (cadre visible).
-    radius: k < 1 ? 32 : 0,
-  };
-}
 
 export type FrameOptions = {
   /**

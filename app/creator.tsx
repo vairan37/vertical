@@ -3,6 +3,13 @@
 import { uploadPresigned } from "@vercel/blob/client";
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  DEFAULT_SETTINGS,
+  imageBox,
+  VIDEO_HEIGHT,
+  VIDEO_WIDTH,
+  type TemplateSettings,
+} from "@/lib/template-settings";
 import YoutubePicker from "./youtube-picker";
 
 const MAX_IMAGE_SIDE = 2000;
@@ -44,11 +51,22 @@ function canShareVideo() {
 const RENDER_TIMEOUT_MS = 310_000;
 
 const MAX_CLIP_BYTES = 200 * 1024 * 1024;
-const CLIP_TYPES: Record<string, string> = { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm" };
+/** Illustrations animées acceptées (envoyées au stockage, rendues image par image). */
+const CLIP_TYPES: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/quicktime": "mov",
+  "video/webm": "webm",
+  "image/gif": "gif",
+};
 
 type Clip = {
   name: string;
-  /** Durée du clip en secondes (il tourne en boucle s'il est plus court que la vidéo). */
+  kind: "video" | "gif";
+  /** URL locale (objet) du fichier, pour l'aperçu animé. */
+  localUrl: string;
+  width: number;
+  height: number;
+  /** Durée du clip en secondes (0 si inconnue, GIF) ; il tourne en boucle s'il est plus court. */
   duration: number;
   progress: number;
   /** URL dans le stockage une fois l'envoi terminé. */
@@ -56,8 +74,18 @@ type Clip = {
   error: string | null;
 };
 
-/** Image d'un clip (à 0,5 s) en JPEG, pour l'aperçu, et sa durée. */
-function clipFrame(file: File): Promise<{ frame: Blob; duration: number }> {
+type ClipMeta = { frame: Blob; duration: number; width: number; height: number };
+
+/** Première image d'un GIF (en JPEG, pour l'aperçu exact) et ses dimensions. */
+async function gifFrame(file: File): Promise<ClipMeta> {
+  const bitmap = await createImageBitmap(file);
+  const { width, height } = bitmap;
+  bitmap.close();
+  return { frame: await resizeImage(file, PREVIEW_IMAGE_SIDE), duration: 0, width, height };
+}
+
+/** Image d'un clip (à 0,5 s) en JPEG, pour l'aperçu, avec sa durée et ses dimensions. */
+function clipFrame(file: File): Promise<ClipMeta> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const video = document.createElement("video");
@@ -79,10 +107,10 @@ function clipFrame(file: File): Promise<{ frame: Blob; duration: number }> {
       canvas.width = Math.round(video.videoWidth * scale);
       canvas.height = Math.round(video.videoHeight * scale);
       canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const duration = video.duration;
+      const meta = { duration: video.duration, width: video.videoWidth, height: video.videoHeight };
       canvas.toBlob((b) => {
         done(b ? undefined : new Error("Image du clip impossible à extraire."));
-        if (b) resolve({ frame: b, duration });
+        if (b) resolve({ frame: b, ...meta });
       }, "image/jpeg", 0.85);
     };
     video.src = url;
@@ -100,7 +128,17 @@ function labelFor(name: string) {
   return name.replace(/\.mp3$/i, "").replace(/[-_]+/g, " ");
 }
 
-export type TemplateOption = { id: string; name: string };
+export type TemplateOption = { id: string; name: string; settings: TemplateSettings };
+
+/** Position d'une boîte de la vidéo (coordonnées 1080x1920) en % du cadre de l'aperçu. */
+function boxStyle(box: { left: number; top: number; width: number; height: number }) {
+  return {
+    left: `${(box.left / VIDEO_WIDTH) * 100}%`,
+    top: `${(box.top / VIDEO_HEIGHT) * 100}%`,
+    width: `${(box.width / VIDEO_WIDTH) * 100}%`,
+    height: `${(box.height / VIDEO_HEIGHT) * 100}%`,
+  };
+}
 
 export default function Creator({ templates, blobUpload }: { templates: TemplateOption[]; blobUpload: boolean }) {
   const [image, setImage] = useState<Blob | null>(null);
@@ -117,6 +155,8 @@ export default function Creator({ templates, blobUpload }: { templates: Template
   const [text, setText] = useState("");
   const [title, setTitle] = useState("");
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
+  const settings = templates.find((t) => t.id === templateId)?.settings ?? DEFAULT_SETTINGS;
+  const clipVideoRef = useRef<HTMLVideoElement>(null);
   const [library, setLibrary] = useState<string[]>([]);
   const [music, setMusic] = useState("");
   const [musicFile, setMusicFile] = useState<File | null>(null);
@@ -168,8 +208,8 @@ export default function Creator({ templates, blobUpload }: { templates: Template
     fetch("/api/music")
       .then((r) => r.json())
       .then((d: { music: string[] }) => {
+        // Pas de musique présélectionnée : sans choix, la vidéo est muette.
         setLibrary(d.music);
-        setMusic((m) => m || d.music[0] || "");
       })
       .catch(() => setError("Impossible de charger la liste des musiques."));
   }, []);
@@ -181,8 +221,9 @@ export default function Creator({ templates, blobUpload }: { templates: Template
       setPreview((p) => ({ ...p, loading: true, error: null }));
       try {
         const form = new FormData();
-        if (previewImage) form.set("image", previewImage, "apercu.jpg");
-        if (clip) form.set("media", "clip");
+        // Clip ou GIF : l'aperçu est composé ici (fond + clip qui joue + calque texte du serveur).
+        if (clip) form.set("layer", "overlay");
+        else if (previewImage) form.set("image", previewImage, "apercu.jpg");
         form.set("text", text);
         if (templateId) form.set("templateId", templateId);
         const res = await fetch("/api/preview", { method: "POST", body: form, signal: controller.signal });
@@ -209,6 +250,8 @@ export default function Creator({ templates, blobUpload }: { templates: Template
   }, [previewImage, text, templateId, Boolean(clip)]);
 
   // Libère les URL locales quand elles changent.
+  const clipLocalUrl = clip?.localUrl;
+  useEffect(() => () => { if (clipLocalUrl) URL.revokeObjectURL(clipLocalUrl); }, [clipLocalUrl]);
   useEffect(() => () => { if (musicFileUrl) URL.revokeObjectURL(musicFileUrl); }, [musicFileUrl]);
 
   const audioSrc = musicFileUrl ?? (music ? `/music/${encodeURIComponent(music)}` : undefined);
@@ -258,13 +301,24 @@ export default function Creator({ templates, blobUpload }: { templates: Template
   }
 
   async function onClip(file: File) {
-    if (!CLIP_TYPES[file.type]) return setError("Vidéo non prise en charge : utilise un MP4, un MOV ou un WebM.");
+    if (!CLIP_TYPES[file.type]) return setError("Vidéo non prise en charge : utilise un MP4, un MOV, un WebM ou un GIF.");
     if (file.size > MAX_CLIP_BYTES) return setError("Le clip est trop lourd (200 Mo maximum). Raccourcis-le.");
     try {
-      const { frame, duration: clipDuration } = await clipFrame(file);
+      const kind = file.type === "image/gif" ? "gif" : "video";
+      const meta = kind === "gif" ? await gifFrame(file) : await clipFrame(file);
       setImage(null);
-      setPreviewImage(frame);
-      setClip({ name: file.name, duration: clipDuration, progress: 0, url: null, error: null });
+      setPreviewImage(meta.frame);
+      setClip({
+        name: file.name,
+        kind,
+        localUrl: URL.createObjectURL(file),
+        width: meta.width,
+        height: meta.height,
+        duration: meta.duration,
+        progress: 0,
+        url: null,
+        error: null,
+      });
       void uploadClip(file);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Cette vidéo n'a pas pu être lue.");
@@ -274,7 +328,7 @@ export default function Creator({ templates, blobUpload }: { templates: Template
   async function onImage(file: File | undefined) {
     setError(null);
     if (!file) return;
-    if (file.type.startsWith("video/")) return onClip(file);
+    if (file.type.startsWith("video/") || file.type === "image/gif") return onClip(file);
     uploadAbort.current?.abort();
     setClip(null);
     try {
@@ -314,8 +368,26 @@ export default function Creator({ templates, blobUpload }: { templates: Template
   function stop() {
     window.clearInterval(ticker.current);
     audioRef.current?.pause();
+    const clipVideo = clipVideoRef.current;
+    if (clipVideo) {
+      clipVideo.pause();
+      clipVideo.currentTime = Math.min(0.5, clipVideo.duration || 0);
+    }
     setPlaying(false);
     setPosition(0);
+  }
+
+  /** Lance le compteur de lecture ; `now` donne la position en secondes. */
+  function startTicker(now: () => number, ended = () => false) {
+    setPlaying(true);
+    setPosition(0);
+    window.clearInterval(ticker.current);
+    ticker.current = window.setInterval(() => {
+      const t = now();
+      // Fin de la vidéo, ou fin du son plus tôt (la vidéo continue alors en silence).
+      if (t >= duration || ended()) stop();
+      else setPosition(t);
+    }, 100);
   }
 
   // Changer de musique, de départ ou de durée arrête la lecture en cours.
@@ -326,23 +398,23 @@ export default function Creator({ templates, blobUpload }: { templates: Template
    * avec l'aperçu et les fondus. Le déplacement attend le chargement (sinon iOS l'ignore).
    */
   function listen() {
-    const audio = audioRef.current;
-    if (!audio) return;
     if (playing) return stop();
+    // Le clip joue avec l'aperçu, en boucle et sans son (son propre son n'est pas gardé).
+    const clipVideo = clipVideoRef.current;
+    if (clipVideo) {
+      clipVideo.currentTime = 0;
+      void clipVideo.play().catch(() => {});
+    }
+    const audio = audioRef.current;
+    if (!audio || !audioSrc) {
+      // Pas de musique : vidéo muette, seul le temps défile.
+      const t0 = performance.now();
+      return startTicker(() => (performance.now() - t0) / 1000);
+    }
     const play = () => {
       audio.currentTime = start;
       audio.play().then(
-        () => {
-          setPlaying(true);
-          setPosition(0);
-          window.clearInterval(ticker.current);
-          ticker.current = window.setInterval(() => {
-            const t = audio.currentTime - start;
-            // Fin de la vidéo, ou fin du son plus tôt (la vidéo continue alors en silence).
-            if (t >= duration || audio.ended) stop();
-            else setPosition(t);
-          }, 100);
-        },
+        () => startTicker(() => audio.currentTime - start, () => audio.ended),
         () => setError("La lecture de l'extrait a échoué sur cet appareil."),
       );
     };
@@ -358,7 +430,6 @@ export default function Creator({ templates, blobUpload }: { templates: Template
     if (!image && !clip) return setError("Choisis une photo ou une vidéo.");
     if (clip && clip.error) return setError(`Le clip n'a pas été envoyé : ${clip.error} Choisis-le à nouveau.`);
     if (clip && !clip.url) return setError(`Envoi du clip en cours (${clip.progress} %) : attends la fin avant de créer la vidéo.`);
-    if (!musicFile && !music) return setError("Choisis une musique.");
     setElapsed(0);
     setBusy(true);
     setVideo(null);
@@ -375,7 +446,7 @@ export default function Creator({ templates, blobUpload }: { templates: Template
       form.set("start", String(start));
       form.set("duration", String(duration));
       if (musicFile) form.set("musicFile", musicFile);
-      else form.set("music", music);
+      else if (music) form.set("music", music);
       const res = await fetch("/api/render", { method: "POST", body: form, signal: controller.signal });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -421,7 +492,37 @@ export default function Creator({ templates, blobUpload }: { templates: Template
         className="sticky top-14 z-[5] -mx-4 -mt-2 flex gap-3 border-b border-zinc-800 bg-background/95 px-4 py-3 backdrop-blur"
       >
         <div className="relative aspect-[9/16] w-32 shrink-0 overflow-hidden rounded-xl bg-zinc-900">
-          {preview.url && (
+          {clip ? (
+            // Clip ou GIF : fond de la template, clip cadré comme au rendu (même imageBox), calque texte.
+            <div
+              className="absolute inset-0 overflow-hidden transition-opacity duration-300"
+              style={{
+                backgroundColor: settings.backgroundColor,
+                opacity: playing && (position < FADE || position > duration - FADE) ? 0.15 : 1,
+              }}
+            >
+              {clip.kind === "gif" ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={clip.localUrl} alt="" className="absolute object-cover" style={boxStyle(imageBox(settings, clip.width / clip.height))} />
+              ) : (
+                <video
+                  ref={clipVideoRef}
+                  // #t=0.5 : affiche une image du clip avant la lecture (sinon iOS montre un cadre noir).
+                  src={`${clip.localUrl}#t=0.5`}
+                  muted
+                  loop
+                  playsInline
+                  preload="auto"
+                  className="absolute object-cover"
+                  style={boxStyle(imageBox(settings, clip.width / clip.height))}
+                />
+              )}
+              {preview.url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={preview.url} alt="Aperçu de la vidéo" className="absolute inset-0 h-full w-full" />
+              )}
+            </div>
+          ) : preview.url && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={preview.url}
@@ -441,7 +542,9 @@ export default function Creator({ templates, blobUpload }: { templates: Template
             <label htmlFor="image" aria-label="Choisir une photo ou une vidéo" className="absolute inset-0 cursor-pointer" />
           )}
           {clip && (
-            <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 text-[10px] font-semibold">▶ CLIP</span>
+            <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 text-[10px] font-semibold">
+              ▶ {clip.kind === "gif" ? "GIF" : "CLIP"}
+            </span>
           )}
           {playing && (
             <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
@@ -454,23 +557,25 @@ export default function Creator({ templates, blobUpload }: { templates: Template
           <label htmlFor="image" className="flex min-h-12 cursor-pointer items-center justify-center rounded-xl bg-zinc-800 font-semibold">
             {image || clip ? "Changer l'illustration" : "Photo ou vidéo"}
           </label>
-          <button type="button" onClick={listen} disabled={!audioSrc} className="min-h-12 rounded-xl bg-white font-semibold text-black disabled:opacity-50">
+          <button type="button" onClick={listen} className="min-h-12 rounded-xl bg-white font-semibold text-black disabled:opacity-50">
             {playing ? `■ ${formatTime(position)} / ${formatTime(duration)}` : "▶ Lire l'aperçu"}
           </button>
           <p className="truncate text-xs text-zinc-500">
-            🎵 {musicFile ? musicFile.name : music ? labelFor(music) : "aucune musique"} · {duration} s
+            {musicFile || music ? `🎵 ${musicFile ? musicFile.name : labelFor(music)}` : "🔇 sans son"} · {duration} s
           </p>
           {clip && (
             <p className={`text-xs ${clip.error ? "text-red-300" : clip.url ? "text-green-400" : "text-sky-300"}`}>
               {clip.error
                 ? `Envoi échoué : ${clip.error}`
                 : clip.url
-                  ? `Clip envoyé ✓ (${Math.round(clip.duration)} s${clip.duration < duration ? ", en boucle" : ""})`
+                  ? clip.kind === "gif"
+                    ? "GIF envoyé ✓ (en boucle)"
+                    : `Clip envoyé ✓ (${Math.round(clip.duration)} s${clip.duration < duration ? ", en boucle" : ""})`
                   : `Envoi du clip… ${clip.progress} %`}
             </p>
           )}
         </div>
-        <input ref={imageInputRef} id="image" type="file" accept="image/*,video/mp4,video/quicktime,video/webm" className="sr-only" onChange={(e) => onImage(e.target.files?.[0])} />
+        <input ref={imageInputRef} id="image" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,image/gif" className="sr-only" onChange={(e) => onImage(e.target.files?.[0])} />
       </section>
 
       <section className="flex flex-col gap-2">
@@ -512,7 +617,7 @@ export default function Creator({ templates, blobUpload }: { templates: Template
           </div>
         ) : (
           <select id="music" value={music} onChange={(e) => setMusic(e.target.value)} className={input}>
-            {library.length === 0 && <option value="">Aucune musique disponible</option>}
+            <option value="">Aucune (vidéo sans son)</option>
             {library.map((m) => (
               <option key={m} value={m}>{labelFor(m)}</option>
             ))}

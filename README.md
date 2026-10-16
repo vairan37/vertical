@@ -43,16 +43,18 @@ Sans token Blob, les fichiers vont dans `.data/files`.
 
 En haut de « Créer », l'**aperçu exact** (calculé par le même moteur que la vidéo finale) suit
 tes réglages : photo, texte, template. « ▶ Lire l'aperçu » joue la musique choisie (départ et
-durée) avec les fondus.
+durée) avec les fondus ; avec un clip ou un GIF, l'aperçu bouge aussi (composé dans le navigateur
+avec le même cadrage que le serveur et le calque texte rendu par le serveur).
 
 1. Choisis une **photo** (réduite à 2000 px dans le navigateur avant l'envoi) **ou une vidéo**
-   (MP4, MOV ou WebM, 200 Mo max). La vidéo est envoyée directement dans le stockage pendant que
+   (MP4, MOV, WebM, ou GIF animé ; 200 Mo max). La vidéo est envoyée directement dans le stockage pendant que
    tu règles le reste ; elle est cadrée comme une photo (template), rejouée en boucle si elle est
    plus courte que la vidéo, et son propre son est remplacé par la musique choisie. Avec un clip,
    la création prend à peu près la durée de la vidéo.
 2. Écris le texte (300 caractères max).
-3. Choisis une musique de `public/music/` ou envoie un fichier audio (3 Mo max), règle le point de
-   départ et la durée (3 à 90 s, la limite des Reels publiés par l'API Instagram).
+3. Musique **facultative** : par défaut « Aucune », la vidéo est muette (piste audio silencieuse).
+   Sinon choisis une musique de `public/music/`, un son YouTube, ou envoie un fichier audio (3 Mo
+   max), et règle le point de départ et la durée (3 à 90 s, la limite des Reels publiés par l'API Instagram).
 4. « Créer la vidéo » : le serveur génère un MP4 1080x1920 (H.264 + AAC, 30 fps), l'enregistre et
    l'ajoute à « Mes vidéos ».
 5. « Mes vidéos » : grille des couvertures avec leur nom (comme un profil TikTok) et l'état

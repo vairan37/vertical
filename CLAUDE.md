@@ -136,7 +136,10 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       (uploadPresigned + handleUploadPresigned/issueSignedToken, compatible OIDC ; 200 Mo max),
       le rendu (/api/render, maxDuration 300 s) superpose fond, clip cadré (imageBox, sans coins
       arrondis), calque PNG transparent (renderFrame overlayOnly). Clip trop court = en boucle ;
-      son du clip ignoré. Colonne source_video_url. Aperçu : image du clip extraite côté client.
+      son du clip ignoré. Colonne source_video_url. GIF animé accepté comme clip. Aperçu d'un clip :
+      composé côté client (fond + clip cadré via imageBox, partagé dans template-settings.ts + calque
+      PNG transparent de /api/preview layer=overlay), le clip joue pendant « Lire l'aperçu ».
+- [x] Musique facultative : par défaut aucune -> vidéo muette (piste silencieuse anullsrc).
 - [ ] Étape 2 : authentification (mot de passe unique, cookie httpOnly, limite de tentatives ;
       routes cron protégées par secret)
 - [ ] Étape 3 : publication (SocialProvider + simulation, écran de publication, Instagram, TikTok,

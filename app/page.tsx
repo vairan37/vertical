@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { usesVercelBlob } from "@/lib/storage";
+import { parseSettings } from "@/lib/template-settings";
 import { listTemplates } from "@/lib/templates";
 import Creator, { type TemplateOption } from "./creator";
 
@@ -19,7 +20,7 @@ async function CreatorWithTemplates() {
   await connection();
   let templates: TemplateOption[] = [];
   try {
-    templates = (await listTemplates()).map((t) => ({ id: t.id, name: t.name }));
+    templates = (await listTemplates()).map((t) => ({ id: t.id, name: t.name, settings: parseSettings(t.settings) }));
   } catch (error) {
     // Sans base, on crée quand même avec le look d'origine.
     console.error("Lecture des templates impossible", error);

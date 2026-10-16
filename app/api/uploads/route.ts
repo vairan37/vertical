@@ -2,8 +2,8 @@ import { issueSignedToken } from "@vercel/blob";
 import { handleUploadPresigned, type HandleUploadPresignedBody } from "@vercel/blob/client";
 import { MAX_CLIP_BYTES, saveFile, usesVercelBlob } from "@/lib/storage";
 
-const CLIP_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
-const PATHNAME = /^sources\/[A-Za-z0-9_-]+\.(mp4|mov|webm)$/;
+const CLIP_TYPES = ["video/mp4", "video/quicktime", "video/webm", "image/gif"];
+const PATHNAME = /^sources\/[A-Za-z0-9_-]+\.(mp4|mov|webm|gif)$/;
 
 /**
  * Envoi d'un clip vidéo (trop lourd pour passer par une requête Vercel, limitée à ~4,5 Mo).
@@ -16,9 +16,9 @@ export async function POST(request: Request) {
     if (usesVercelBlob()) return Response.json({ error: "Envoi direct requis." }, { status: 400 });
     const file = (await request.formData()).get("file");
     if (!(file instanceof File) || !CLIP_TYPES.includes(file.type)) {
-      return Response.json({ error: "Envoie une vidéo MP4, MOV ou WebM." }, { status: 400 });
+      return Response.json({ error: "Envoie une vidéo MP4, MOV ou WebM, ou un GIF." }, { status: 400 });
     }
-    const ext = file.type === "video/quicktime" ? "mov" : file.type === "video/webm" ? "webm" : "mp4";
+    const ext = { "video/quicktime": "mov", "video/webm": "webm", "image/gif": "gif" }[file.type] ?? "mp4";
     const saved = await saveFile(`sources/${crypto.randomUUID()}.${ext}`, Buffer.from(await file.arrayBuffer()), file.type);
     return Response.json({ url: saved.url });
   }

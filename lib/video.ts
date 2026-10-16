@@ -10,13 +10,28 @@ export class RenderError extends Error {}
 
 type RenderOptions = {
   framePng: Buffer;
-  /** Chemin d'une musique de la bibliothèque, ou contenu d'un fichier envoyé. */
-  music: { path: string } | { data: Buffer };
+  /** Chemin d'une musique de la bibliothèque, contenu d'un fichier envoyé, ou null (silence). */
+  music: { path: string } | { data: Buffer } | null;
   /** Point de départ dans la musique, en secondes. */
   start: number;
   /** Durée de la vidéo, en secondes. */
   duration: number;
 };
+
+/**
+ * Entrée audio ffmpeg : la musique (à partir de `start`, sur `seconds`), ou une piste silencieuse
+ * quand aucune musique n'est choisie (les réseaux acceptent mieux une vidéo avec piste audio).
+ */
+async function audioInput(music: RenderOptions["music"], dir: string, start: number, seconds: number): Promise<string[]> {
+  if (!music) return ["-f", "lavfi", "-t", String(seconds), "-i", "anullsrc=r=44100:cl=stereo"];
+  let path: string;
+  if ("path" in music) path = music.path;
+  else {
+    path = join(dir, "music");
+    await writeFile(path, music.data);
+  }
+  return ["-ss", start.toFixed(3), "-t", String(seconds), "-i", path];
+}
 
 function run(bin: string, args: string[], timeout = 50_000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -65,14 +80,6 @@ export async function renderVideo({ framePng, music, start, duration }: RenderOp
     const outPath = join(dir, "video.mp4");
     const coverPath = join(dir, "cover.jpg");
     await writeFile(framePath, framePng);
-
-    let musicPath: string;
-    if ("path" in music) {
-      musicPath = music.path;
-    } else {
-      musicPath = join(dir, "music");
-      await writeFile(musicPath, music.data);
-    }
 
     // L'image est fixe : au lieu d'encoder chaque image (lent pour 90 s), on encode trois petits
     // segments (fondu d'entrée 1 s, image fixe 1 s et 5 s, fondu de sortie 1 s) et on les enchaîne
@@ -130,9 +137,7 @@ export async function renderVideo({ framePng, music, start, duration }: RenderOp
       "-f", "concat",
       "-safe", "0",
       "-i", listPath,
-      "-ss", start.toFixed(3),
-      "-t", d,
-      "-i", musicPath,
+      ...(await audioInput(music, dir, start, total)),
       "-map", "0:v",
       "-map", "1:a",
       "-af", audioFilter,
@@ -203,12 +208,6 @@ export async function renderClip({ clipPath, clip, overlayPng, settings, music, 
     const outPath = join(dir, "video.mp4");
     const coverPath = join(dir, "cover.jpg");
     await writeFile(overlayPath, overlayPng);
-    let musicPath: string;
-    if ("path" in music) musicPath = music.path;
-    else {
-      musicPath = join(dir, "music");
-      await writeFile(musicPath, music.data);
-    }
 
     const total = Math.round(duration);
     const box = imageBox(settings, clip.width / clip.height);
@@ -234,9 +233,7 @@ export async function renderClip({ clipPath, clip, overlayPng, settings, music, 
         "-stream_loop", "-1",
         "-i", clipPath,
         "-i", overlayPath,
-        "-ss", start.toFixed(3),
-        "-t", String(total),
-        "-i", musicPath,
+        ...(await audioInput(music, dir, start, total)),
         "-filter_complex", filter,
         "-map", "[v]",
         "-map", "[a]",

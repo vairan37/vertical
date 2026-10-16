@@ -56,18 +56,19 @@ export async function POST(request: Request) {
     return fail("Le point de départ de la musique est invalide.");
   }
 
-  let music: { path: string } | { data: Buffer };
-  let musicName: string;
+  // Pas de musique choisie : vidéo muette (piste silencieuse).
+  let music: { path: string } | { data: Buffer } | null = null;
+  let musicName = "";
   const musicFile = form.get("musicFile");
   if (musicFile instanceof File && musicFile.size > 0) {
     if (musicFile.size > MAX_UPLOADED_MUSIC_BYTES) return fail("La musique est trop lourde (3 Mo maximum).");
     if (musicFile.type && !musicFile.type.startsWith("audio/")) return fail("Le fichier de musique n'est pas un fichier audio.");
     music = { data: Buffer.from(await musicFile.arrayBuffer()) };
     musicName = musicFile.name || "fichier envoyé";
-  } else {
-    musicName = String(form.get("music") ?? "");
+  } else if (String(form.get("music") ?? "")) {
+    musicName = String(form.get("music"));
     const path = await resolveMusic(musicName);
-    if (!path) return fail("Choisis une musique.");
+    if (!path) return fail("Cette musique n'existe plus. Choisis-en une autre.");
     music = { path };
   }
 

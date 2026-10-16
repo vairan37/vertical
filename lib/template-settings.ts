@@ -3,6 +3,9 @@
  * Ce fichier ne doit rien importer de spécifique au serveur.
  */
 
+export const VIDEO_WIDTH = 1080;
+export const VIDEO_HEIGHT = 1920;
+
 export const FONTS = {
   montserrat: { label: "Montserrat (gras)", file: "Montserrat-ExtraBold.ttf", weight: 800, lineHeight: 1.15 },
   poppins: { label: "Poppins (gras)", file: "Poppins-Bold.ttf", weight: 700, lineHeight: 1.2 },
@@ -87,3 +90,37 @@ export function parseSettings(input: unknown): TemplateSettings {
     darken: o.darken === undefined ? DEFAULT_SETTINGS.darken : o.darken === true || o.darken === "true" || o.darken === "on",
   };
 }
+
+/**
+ * Boîte de l'image dans la vidéo, selon le cadrage :
+ * - cover : cadre 9:16 (recadrage) ;
+ * - width : largeur = imageScale % de la vidéo, hauteur selon le format de la photo ;
+ * - height : hauteur = imageScale % de la vidéo, largeur selon le format de la photo
+ *   (ce qui dépasse sur les côtés est rogné).
+ * Toujours centrée horizontalement, centre vertical à imageY %.
+ */
+export function imageBox(settings: TemplateSettings, ratio: number) {
+  const k = settings.imageScale / 100;
+  let w: number;
+  let h: number;
+  if (settings.imageFit === "width") {
+    w = VIDEO_WIDTH * k;
+    h = w / ratio;
+  } else if (settings.imageFit === "height") {
+    h = VIDEO_HEIGHT * k;
+    w = h * ratio;
+  } else {
+    w = VIDEO_WIDTH * k;
+    h = VIDEO_HEIGHT * k;
+  }
+  const fullScreen = settings.imageFit === "cover" && k >= 1;
+  return {
+    width: Math.round(w),
+    height: Math.round(h),
+    left: fullScreen ? 0 : Math.round((VIDEO_WIDTH - w) / 2),
+    top: fullScreen ? 0 : Math.round((VIDEO_HEIGHT * settings.imageY) / 100 - h / 2),
+    // Coins arrondis seulement pour une image réduite (cadre visible).
+    radius: k < 1 ? 32 : 0,
+  };
+}
+

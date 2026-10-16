@@ -23,6 +23,12 @@ export async function POST(request: Request) {
   const text = String(form.get("text") ?? "").trim().slice(0, MAX_TEXT_LENGTH);
   try {
     const template = await resolveTemplate(String(form.get("templateId") ?? "") || null);
+    // Calque seul (dégradé + texte, fond transparent) : l'aperçu animé d'un clip le superpose
+    // lui-même au clip qui joue. PNG pour garder la transparence.
+    if (form.get("layer") === "overlay") {
+      const png = await renderFrame(null, text, template.settings, { overlayOnly: true });
+      return new Response(new Uint8Array(png), { headers: { "Content-Type": "image/png", "Cache-Control": "no-store" } });
+    }
     // Pour un clip, l'image envoyée est une image du clip : pas de coins arrondis (comme le rendu).
     const rounded = form.get("media") !== "clip";
     const jpeg = await frameToJpeg(await renderFrame(source ? source.image : null, text, template.settings, { rounded }));
