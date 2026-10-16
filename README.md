@@ -51,7 +51,8 @@ avec le même cadrage que le serveur et le calque texte rendu par le serveur).
    tu règles le reste ; elle est cadrée comme une photo (template), rejouée en boucle si elle est
    plus courte que la vidéo, et son propre son est remplacé par la musique choisie. Avec un clip,
    la création prend à peu près la durée de la vidéo.
-2. Écris le texte (300 caractères max).
+2. Écris le texte (300 caractères max) et, si tu veux, l'**auteur** (ex. le rappeur) : il
+   s'affiche « - Nom » juste sous le texte, calé à droite, dans la police de la template.
 3. Musique **facultative** : par défaut « Aucune », la vidéo est muette (piste audio silencieuse)
    et tu règles sa durée. Sinon choisis une musique de `public/music/`, un son YouTube, ou envoie
    un fichier audio (3 Mo max), puis l'**extrait** (début + durée de 15 à 90 s) : la musique

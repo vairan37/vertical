@@ -15,7 +15,7 @@ import {
 } from "@/lib/storage";
 import { resolveTemplate } from "@/lib/templates";
 import { cookiesConfigured, ytDlpAvailable } from "@/lib/youtube";
-import { MAX_DURATION, MAX_TEXT_LENGTH, MIN_DURATION, renderFrame } from "@/lib/template";
+import { MAX_AUTHOR_LENGTH, MAX_DURATION, MAX_TEXT_LENGTH, MIN_DURATION, renderFrame } from "@/lib/template";
 import { probeVideo, RenderError, renderClip, renderVideo } from "@/lib/video";
 
 // 300 s : maximum du plan Hobby (Fluid compute). Un clip vidéo s'encode à peu près en temps réel.
@@ -44,6 +44,7 @@ export async function POST(request: Request) {
 
   const text = String(form.get("text") ?? "").trim();
   const title = String(form.get("title") ?? "").trim().slice(0, MAX_TITLE_LENGTH) || null;
+  const author = String(form.get("author") ?? "").trim().slice(0, MAX_AUTHOR_LENGTH);
   if (text.length > MAX_TEXT_LENGTH) return fail(`Le texte dépasse ${MAX_TEXT_LENGTH} caractères.`);
 
   const duration = Math.round(Number(form.get("duration")));
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
     let imageUrl: string | null = null;
 
     if (source) {
-      const framePng = await renderFrame(source.image, text, template.settings);
+      const framePng = await renderFrame(source.image, text, template.settings, { author });
       ({ mp4, cover } = await renderVideo({ framePng, music, start, duration }));
       const ext = source.type === "image/png" ? "png" : "jpg";
       imageUrl = (await saveFile(`images/${id}.${ext}`, source.buffer, source.type)).url;
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
         return fail("Le clip vidéo n'a pas pu être récupéré. Renvoie-le.");
       }
       const clip = await probeVideo(clipPath);
-      const overlayPng = await renderFrame(null, text, template.settings, { overlayOnly: true });
+      const overlayPng = await renderFrame(null, text, template.settings, { overlayOnly: true, author });
       ({ mp4, cover } = await renderClip({ clipPath, clip, overlayPng, settings: template.settings, music, start, duration }));
     }
 
@@ -107,6 +108,7 @@ export async function POST(request: Request) {
       id,
       title,
       text,
+      author: author || null,
       videoUrl: video.url,
       downloadUrl: video.downloadUrl,
       // Pour un clip, l'« image source » est la couverture (la colonne est obligatoire).

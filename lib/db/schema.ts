@@ -40,6 +40,8 @@ export const videos = pgTable("videos", {
   /** Nom affiché dans « Mes vidéos » (null : on affiche le texte de la vidéo). */
   title: text("title"),
   text: text("text").notNull().default(""),
+  /** Auteur affiché sous le texte (ligne « - Nom »), ex. le rappeur. */
+  author: text("author"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   videoUrl: text("video_url").notNull(),
   downloadUrl: text("download_url").notNull(),

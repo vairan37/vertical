@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { displayName, getVideo, PLATFORMS } from "@/lib/videos";
+import PausingVideo from "../../pausing-video";
 import PlatformRow from "../platform-row";
 import VideoActions from "./video-actions";
 
@@ -34,7 +35,7 @@ async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["para
 
   return (
     <div className="flex flex-col gap-5">
-      <video
+      <PausingVideo
         src={video.videoUrl}
         poster={video.coverUrl ?? undefined}
         controls
@@ -61,6 +62,7 @@ async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["para
         <h2 className="mb-1 font-semibold text-foreground">Détails</h2>
         <p>Créée le {dateFormat.format(video.createdAt)}</p>
         {video.text && <p className="whitespace-pre-wrap">Texte : {video.text}</p>}
+        {video.author && <p>Auteur : {video.author}</p>}
         <p>Durée : {video.duration} s</p>
         <p>Musique : {video.musicName ? video.musicName.replace(/\.mp3$/i, "") : "aucune (vidéo muette)"}</p>
         <p>Template : {video.templateName ?? "—"}</p>

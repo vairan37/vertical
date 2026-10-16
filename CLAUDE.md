@@ -41,7 +41,8 @@ app/
   layout.tsx          layout racine (lang="fr", thème sombre, navigation)
   nav.tsx             barre de navigation (Créer / Mes vidéos / Templates)
   page.tsx            page d'accueil -> outil de création
-  creator.tsx         composant client de création (image, texte, musique, durée, aperçu)
+  creator.tsx         composant client de création (image, texte, auteur, musique, aperçu)
+  pausing-video.tsx   <video> mis en pause quand la page est quittée (Activity) ou l'appli masquée
   videos/             "Mes vidéos" : grille de couvertures façon profil TikTok ; [id] = détail
                       (lecture, renommer, télécharger, supprimer, statut + marquage manuel)
   api/music/route.ts  GET : liste des musiques de public/music
@@ -144,6 +145,11 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       commence avec la vidéo et la durée de la vidéo = durée de l'extrait (plus de curseurs
       « départ » / « durée », sauf la durée d'une vidéo sans son). YouTube : extrait découpé côté
       serveur, rouvert dans YoutubePicker (initial) pour le modifier.
+- [x] Ligne auteur (« - Nom ») sous le texte, calée à droite du bloc texte, même police (option
+      author de renderFrame, colonne videos.author).
+- [x] Navigation : Next 16 + cacheComponents cache la page quittée (React <Activity>) sans
+      arrêter la lecture des <video>/<audio> : utiliser PausingVideo / un nettoyage
+      useLayoutEffect qui met en pause.
 - [ ] Étape 2 : authentification (mot de passe unique, cookie httpOnly, limite de tentatives ;
       routes cron protégées par secret)
 - [ ] Étape 3 : publication (SocialProvider + simulation, écran de publication, Instagram, TikTok,

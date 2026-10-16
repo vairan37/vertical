@@ -2,7 +2,7 @@
 
 import { uploadPresigned } from "@vercel/blob/client";
 import Link from "next/link";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   DEFAULT_SETTINGS,
   imageBox,
@@ -11,6 +11,7 @@ import {
   type TemplateSettings,
 } from "@/lib/template-settings";
 import ExcerptFields, { type Excerpt } from "./excerpt-fields";
+import PausingVideo from "./pausing-video";
 import YoutubePicker, { type YoutubeChoice } from "./youtube-picker";
 
 const MAX_IMAGE_SIDE = 2000;
@@ -155,6 +156,7 @@ export default function Creator({ templates, blobUpload }: { templates: Template
   const [position, setPosition] = useState(0);
   const [text, setText] = useState("");
   const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
   const settings = templates.find((t) => t.id === templateId)?.settings ?? DEFAULT_SETTINGS;
   const clipVideoRef = useRef<HTMLVideoElement>(null);
@@ -233,6 +235,7 @@ export default function Creator({ templates, blobUpload }: { templates: Template
         if (clip) form.set("layer", "overlay");
         else if (previewImage) form.set("image", previewImage, "apercu.jpg");
         form.set("text", text);
+        form.set("author", author);
         if (templateId) form.set("templateId", templateId);
         const res = await fetch("/api/preview", { method: "POST", body: form, signal: controller.signal });
         if (!res.ok) {
@@ -255,7 +258,7 @@ export default function Creator({ templates, blobUpload }: { templates: Template
     };
     // clip : seul « est-ce un clip ? » compte (coins arrondis), pas la progression de l'envoi.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewImage, text, templateId, Boolean(clip)]);
+  }, [previewImage, text, author, templateId, Boolean(clip)]);
 
   // Libère les URL locales quand elles changent.
   const clipLocalUrl = clip?.localUrl;
@@ -430,6 +433,17 @@ export default function Creator({ templates, blobUpload }: { templates: Template
 
   // Changer de musique, de départ ou de durée arrête la lecture en cours.
   useEffect(() => stop, [audioSrc, start, duration]);
+  // Page quittée (cachée par Next, pas démontée) ou appli en arrière-plan : on arrête l'aperçu.
+  useLayoutEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") stop();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      stop();
+    };
+  }, []);
 
   /**
    * Joue la vidéo telle qu'elle sera : la musique depuis le départ choisi pendant la durée choisie,
@@ -480,6 +494,7 @@ export default function Creator({ templates, blobUpload }: { templates: Template
       else if (image) form.set("image", image, "image.jpg");
       form.set("text", text);
       form.set("title", title);
+      form.set("author", author);
       if (templateId) form.set("templateId", templateId);
       form.set("start", String(start));
       form.set("duration", String(duration));
@@ -646,6 +661,20 @@ export default function Creator({ templates, blobUpload }: { templates: Template
         <span className="self-end text-sm text-zinc-500">{text.length}/{MAX_TEXT_LENGTH}</span>
       </section>
 
+      <section className="flex flex-col gap-2">
+        <label className="font-semibold" htmlFor="author">
+          Auteur <span className="font-normal text-zinc-500">(optionnel, ex. le rappeur)</span>
+        </label>
+        <input
+          id="author"
+          value={author}
+          maxLength={60}
+          onChange={(e) => setAuthor(e.target.value)}
+          className={input}
+          placeholder="Affiché « - Nom » sous le texte, à droite"
+        />
+      </section>
+
       <section className="flex flex-col gap-3">
         <label className="font-semibold" htmlFor="music">Musique</label>
         {!hasAudio ? (
@@ -730,7 +759,7 @@ export default function Creator({ templates, blobUpload }: { templates: Template
       {video && (
         <section ref={videoRef} className="flex flex-col gap-3">
           <p className="font-semibold text-green-400">Vidéo créée ✓</p>
-          <video src={video.url} controls playsInline preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black" />
+          <PausingVideo src={video.url} controls playsInline preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black" />
           <Link href="/videos" className={`${button} bg-white text-center text-black`}>
             Voir dans Mes vidéos
           </Link>

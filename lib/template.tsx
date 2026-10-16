@@ -63,7 +63,11 @@ export type FrameOptions = {
   overlayOnly?: boolean;
   /** Coins arrondis d'une image réduite (désactivé pour les clips, que ffmpeg ne peut pas arrondir). */
   rounded?: boolean;
+  /** Auteur (ex. le rappeur) : ligne « - Nom » sous le texte, calée à droite, même police. */
+  author?: string;
 };
+
+export const MAX_AUTHOR_LENGTH = 60;
 
 /**
  * Génère l'image (PNG 1080x1920) de la vidéo.
@@ -74,12 +78,17 @@ export async function renderFrame(
   image: SourceImage | null,
   text: string,
   settings: TemplateSettings,
-  { overlayOnly = false, rounded = true }: FrameOptions = {},
+  { overlayOnly = false, rounded = true, author = "" }: FrameOptions = {},
 ): Promise<Buffer> {
   const font = FONTS[settings.font];
   const fontData = await loadFont(settings.font);
   const box = imageBox(settings, image ? image.width / image.height : PLACEHOLDER_RATIO);
   if (!rounded) box.radius = 0;
+
+  const mainSize = fontSizeFor(text, settings.textSize);
+  // L'auteur : moitié de la taille du texte principal, jamais illisible.
+  const authorSize = Math.max(32, Math.round(mainSize * 0.5));
+  author = author.trim().slice(0, MAX_AUTHOR_LENGTH);
 
   // Bande du texte centrée sur textY % : le texte est centré verticalement dans cette bande.
   const half = Math.min(settings.textY, 100 - settings.textY);
@@ -146,7 +155,7 @@ export async function renderFrame(
             }}
           />
         )}
-        {text ? (
+        {text || author ? (
           <div
             style={{
               position: "absolute",
@@ -159,20 +168,35 @@ export async function renderFrame(
               justifyContent: "center",
             }}
           >
+            {/* Colonne ajustée au texte : le texte y est centré, l'auteur calé sur son bord droit. */}
             <div
               style={{
                 display: "flex",
-                textAlign: "center",
+                flexDirection: "column",
+                alignItems: "center",
                 color: settings.textColor,
                 fontFamily: "Template",
                 fontWeight: font.weight,
-                fontSize: fontSizeFor(text, settings.textSize),
                 lineHeight: font.lineHeight,
                 textShadow: "0 4px 24px rgba(0,0,0,0.6)",
-                whiteSpace: "pre-wrap",
               }}
             >
-              {text}
+              {text ? (
+                <div style={{ display: "flex", textAlign: "center", fontSize: mainSize, whiteSpace: "pre-wrap" }}>{text}</div>
+              ) : null}
+              {author ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignSelf: text ? "flex-end" : "center",
+                    textAlign: "right",
+                    fontSize: authorSize,
+                    marginTop: text ? Math.round(authorSize * 0.35) : 0,
+                  }}
+                >
+                  {`- ${author}`}
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}

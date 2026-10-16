@@ -36,6 +36,13 @@
       "when": 1792161724666,
       "tag": "0004_source_video",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792165407516,
+      "tag": "0005_video_author",
+      "breakpoints": true
     }
   ]
 }
