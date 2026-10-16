@@ -32,7 +32,7 @@ Configuration sur Vercel (une seule fois) :
 1. Projet Vercel → onglet **Storage** → **Create Database** → **Neon** → relie-le au projet
    (Production et Preview). `DATABASE_URL` est ajoutée automatiquement.
 2. Onglet **Storage** → **Create** → **Blob** → accès **Public** → relie-le au projet.
-   `BLOB_READ_WRITE_TOKEN` est ajoutée automatiquement.
+   `BLOB_READ_WRITE_TOKEN` (ou `BLOB_STORE_ID`) est ajoutée automatiquement.
 3. Redéploie, puis ouvre `/api/render` : tu dois voir `"base":"configurée"` et
    `"stockage":"Vercel Blob"`.
 

@@ -4,8 +4,16 @@ import { basename, join } from "node:path";
 
 export class StorageNotConfiguredError extends Error {
   constructor() {
-    super("Le stockage des vidéos n'est pas configuré (variable BLOB_READ_WRITE_TOKEN manquante).");
+    super("Le stockage des vidéos n'est pas configuré : relie un store Vercel Blob au projet puis redéploie.");
   }
+}
+
+/**
+ * Vercel Blob est utilisé sur Vercel (identifiants trouvés par @vercel/blob : BLOB_READ_WRITE_TOKEN,
+ * ou OIDC avec BLOB_STORE_ID), ou en local si un token est fourni.
+ */
+export function usesVercelBlob() {
+  return Boolean(process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN);
 }
 
 export type StoredFile = { url: string; downloadUrl: string };
@@ -18,11 +26,17 @@ const LOCAL_DIR = join(process.cwd(), ".data", "files");
  * Vercel Blob en production ; en local sans token, le disque (servi par /api/files/[name]).
  */
 export async function saveFile(name: string, data: Buffer, contentType: string): Promise<StoredFile> {
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const blob = await put(name, data, { access: "public", contentType, addRandomSuffix: true });
-    return { url: blob.url, downloadUrl: blob.downloadUrl };
+  if (usesVercelBlob()) {
+    try {
+      const blob = await put(name, data, { access: "public", contentType, addRandomSuffix: true });
+      return { url: blob.url, downloadUrl: blob.downloadUrl };
+    } catch (error) {
+      if (error instanceof Error && /no blob credentials/i.test(error.message)) {
+        throw new StorageNotConfiguredError();
+      }
+      throw error;
+    }
   }
-  if (process.env.VERCEL) throw new StorageNotConfiguredError();
   const file = basename(name);
   await mkdir(LOCAL_DIR, { recursive: true });
   await writeFile(join(LOCAL_DIR, file), data);

@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import ffmpegPath from "ffmpeg-static";
 import { DbNotConfiguredError, getDb, videos } from "@/lib/db";
 import { listMusic, MAX_UPLOADED_MUSIC_BYTES, resolveMusic } from "@/lib/music";
-import { saveFile, StorageNotConfiguredError } from "@/lib/storage";
+import { saveFile, StorageNotConfiguredError, usesVercelBlob } from "@/lib/storage";
 import { MAX_DURATION, MAX_TEXT_LENGTH, MIN_DURATION, renderFrame } from "@/lib/template";
 import { RenderError, renderVideo } from "@/lib/video";
 
@@ -98,6 +98,12 @@ export async function GET() {
     ffmpeg: ffmpeg ? "OK" : "introuvable",
     musiques: music.length ? music : "aucune",
     base: process.env.DATABASE_URL ? "configurée" : "non configurée",
-    stockage: process.env.BLOB_READ_WRITE_TOKEN ? "Vercel Blob" : process.env.VERCEL ? "non configuré" : "local (.data)",
+    stockage: !usesVercelBlob()
+      ? "local (.data)"
+      : process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID
+        ? "Vercel Blob"
+        : "non configuré",
+    // Noms (jamais les valeurs) des variables liées à Blob, pour le diagnostic.
+    variablesBlob: Object.keys(process.env).filter((k) => k.includes("BLOB")),
   });
 }
