@@ -53,6 +53,10 @@ Sans token Blob, les fichiers vont dans `.data/files`.
    ⚠ signale une vidéo publiée sur un seul réseau. Supprimer une vidéo l'efface du site et du
    stockage, jamais d'Instagram ni de TikTok.
 
+6. « Publiées » : uniquement les vidéos en ligne sur au moins un réseau, et en haut le bloc
+   « Comptes » pour connecter ou déconnecter Instagram et TikTok (la connexion arrive avec la
+   publication automatique).
+
 Pour ajouter des musiques : dépose des fichiers `.mp3` dans `public/music/` et redéploie.
 
 ## Templates

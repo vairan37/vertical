@@ -44,6 +44,8 @@ app/
                       (lecture, renommer, télécharger, supprimer, statut + marquage manuel)
   api/music/route.ts  GET : liste des musiques de public/music
   api/render/route.tsx POST multipart : génère le MP4, l'enregistre (stockage + base), renvoie l'URL
+  publiees/           "Publiées" : bloc Comptes (connexion Instagram/TikTok, état, déconnexion) +
+                      grille des vidéos publiées sur au moins un réseau
   templates/          CRUD des templates : liste (créer, dupliquer, par défaut) et éditeur [id]
   api/templates/preview/ GET : aperçu PNG d'une template (réglages en JSON dans ?s=)
   api/files/[name]/   sert le stockage local (dev sans Vercel Blob)
@@ -113,6 +115,9 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       l'image, cadrage remplir / pleine largeur / pleine hauteur, police, couleurs, assombrissement), aperçu en direct, template par défaut, choix de
       la template à la création. Remplace la « template fixe unique » du cahier des charges, à la
       demande de Victor. Template de départ « Classique » insérée par la migration 0002.
+- [x] Page « Publiées » : grille des vidéos publiées + bloc Comptes lu dans social_accounts
+      (jamais les tokens). « Connecter » explique ce qu'il faut préparer : l'OAuth réel arrive à
+      l'étape 3 (routes à brancher sur ce bouton). « Déconnecter » supprime les tokens en base.
 - [ ] Étape 2 : authentification (mot de passe unique, cookie httpOnly, limite de tentatives ;
       routes cron protégées par secret)
 - [ ] Étape 3 : publication (SocialProvider + simulation, écran de publication, Instagram, TikTok,
