@@ -27,8 +27,15 @@ async function resizeImage(file: File): Promise<Blob> {
 const noop = () => () => {};
 
 function canShareVideo() {
-  return "canShare" in navigator && navigator.canShare({ files: [new File([], "v.mp4", { type: "video/mp4" })] });
+  try {
+    return "canShare" in navigator && navigator.canShare({ files: [new File([], "v.mp4", { type: "video/mp4" })] });
+  } catch {
+    return false;
+  }
 }
+
+/** Délai max d'attente du serveur avant d'abandonner. */
+const RENDER_TIMEOUT_MS = 90_000;
 
 function labelFor(name: string) {
   return name.replace(/\.mp3$/i, "").replace(/[-_]+/g, " ");
@@ -48,6 +55,38 @@ export default function Creator() {
   const [video, setVideo] = useState<{ blob: Blob; url: string } | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [musicFileUrl, setMusicFileUrl] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const videoRef = useRef<HTMLElement>(null);
+
+  // Affiche toute erreur JavaScript inattendue au lieu d'échouer en silence.
+  useEffect(() => {
+    const onError = (e: ErrorEvent) => setError(`Erreur inattendue : ${e.message}`);
+    const onRejection = (e: PromiseRejectionEvent) =>
+      setError(`Erreur inattendue : ${e.reason instanceof Error ? e.reason.message : String(e.reason)}`);
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, []);
+
+  // Compteur affiché pendant la création.
+  useEffect(() => {
+    if (!busy) return;
+    const startedAt = Date.now();
+    const id = window.setInterval(() => setElapsed(Math.round((Date.now() - startedAt) / 1000)), 1000);
+    return () => window.clearInterval(id);
+  }, [busy]);
+
+  // Sur téléphone, le résultat apparaît sous le bouton : on le fait défiler à l'écran.
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [error]);
+  useEffect(() => {
+    if (video) videoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [video]);
 
   useEffect(() => {
     fetch("/api/music")
@@ -106,8 +145,11 @@ export default function Creator() {
     setError(null);
     if (!image) return setError("Choisis une image.");
     if (!musicFile && !music) return setError("Choisis une musique.");
+    setElapsed(0);
     setBusy(true);
     setVideo(null);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), RENDER_TIMEOUT_MS);
     try {
       const form = new FormData();
       form.set("image", image, "image.jpg");
@@ -116,7 +158,7 @@ export default function Creator() {
       form.set("duration", String(duration));
       if (musicFile) form.set("musicFile", musicFile);
       else form.set("music", music);
-      const res = await fetch("/api/render", { method: "POST", body: form });
+      const res = await fetch("/api/render", { method: "POST", body: form, signal: controller.signal });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error ?? `Erreur du serveur (${res.status}).`);
@@ -124,8 +166,11 @@ export default function Creator() {
       const blob = await res.blob();
       setVideo({ blob, url: URL.createObjectURL(blob) });
     } catch (e) {
-      setError(e instanceof TypeError ? "Connexion impossible. Vérifie ton réseau." : (e as Error).message);
+      if (controller.signal.aborted) setError("Le serveur met trop de temps à répondre. Réessaie.");
+      else if (e instanceof TypeError) setError("Connexion impossible. Vérifie ton réseau.");
+      else setError(e instanceof Error ? e.message : String(e));
     } finally {
+      window.clearTimeout(timeout);
       setBusy(false);
     }
   }
@@ -212,15 +257,17 @@ export default function Creator() {
         </button>
       </section>
 
-      {error && <p role="alert" className="rounded-xl bg-red-950 px-4 py-3 text-red-200">{error}</p>}
+      {error && <p ref={errorRef} role="alert" className="rounded-xl bg-red-950 px-4 py-3 text-red-200">{error}</p>}
 
       <button type="button" onClick={create} disabled={busy} className={`${button} bg-white text-black`}>
-        {busy ? "Création en cours…" : "Créer la vidéo"}
+        {busy ? `Création en cours… ${elapsed} s` : "Créer la vidéo"}
       </button>
+      {busy && <p className="-mt-3 text-center text-sm text-zinc-400">Ça prend en général 5 à 20 secondes.</p>}
 
       {video && (
-        <section className="flex flex-col gap-3">
-          <video src={video.url} controls playsInline className="aspect-[9/16] w-full rounded-xl bg-black" />
+        <section ref={videoRef} className="flex flex-col gap-3">
+          <p className="font-semibold text-green-400">Vidéo créée ✓</p>
+          <video src={video.url} controls playsInline preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black" />
           <a href={video.url} download="vertical.mp4" className={`${button} bg-zinc-800 text-center`}>
             Télécharger
           </a>

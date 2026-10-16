@@ -1,4 +1,6 @@
-import { MAX_UPLOADED_MUSIC_BYTES, resolveMusic } from "@/lib/music";
+import { access } from "node:fs/promises";
+import ffmpegPath from "ffmpeg-static";
+import { listMusic, MAX_UPLOADED_MUSIC_BYTES, resolveMusic } from "@/lib/music";
 import { MAX_DURATION, MAX_TEXT_LENGTH, MIN_DURATION, renderFrame } from "@/lib/template";
 import { RenderError, renderVideo } from "@/lib/video";
 
@@ -67,4 +69,14 @@ export async function POST(request: Request) {
     }
     return fail("La vidéo n'a pas pu être créée (erreur inattendue du serveur).", 500);
   }
+}
+
+/** Diagnostic : ouvre /api/render dans le navigateur pour vérifier le serveur. */
+export async function GET() {
+  const ffmpeg = ffmpegPath ? await access(ffmpegPath).then(() => true, () => false) : false;
+  const music = await listMusic();
+  return Response.json({
+    ffmpeg: ffmpeg ? "OK" : "introuvable",
+    musiques: music.length ? music : "aucune",
+  });
 }
