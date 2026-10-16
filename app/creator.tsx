@@ -10,7 +10,8 @@ import {
   VIDEO_WIDTH,
   type TemplateSettings,
 } from "@/lib/template-settings";
-import YoutubePicker from "./youtube-picker";
+import ExcerptFields, { type Excerpt } from "./excerpt-fields";
+import YoutubePicker, { type YoutubeChoice } from "./youtube-picker";
 
 const MAX_IMAGE_SIDE = 2000;
 const MAX_TEXT_LENGTH = 300;
@@ -160,8 +161,15 @@ export default function Creator({ templates, blobUpload }: { templates: Template
   const [library, setLibrary] = useState<string[]>([]);
   const [music, setMusic] = useState("");
   const [musicFile, setMusicFile] = useState<File | null>(null);
-  const [start, setStart] = useState(0);
-  const [duration, setDuration] = useState(8);
+  // Extrait d'une musique de la bibliothèque ou d'un fichier envoyé (début + durée).
+  const [excerpt, setExcerpt] = useState<Excerpt>({ start: 0, length: 15 });
+  // Extrait YouTube : le fichier est déjà découpé ; on garde le choix pour pouvoir le modifier.
+  const [ytChoice, setYtChoice] = useState<YoutubeChoice | null>(null);
+  const [editingExcerpt, setEditingExcerpt] = useState(false);
+  // Durée totale du son choisi (lue dans ses métadonnées), pour ne pas dépasser sa fin.
+  const [audioTotal, setAudioTotal] = useState<number | null>(null);
+  // Durée d'une vidéo sans son (seul cas où on la règle directement).
+  const [silentDuration, setSilentDuration] = useState(8);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [video, setVideo] = useState<{ id: string; url: string; downloadUrl: string } | null>(null);
@@ -255,6 +263,17 @@ export default function Creator({ templates, blobUpload }: { templates: Template
   useEffect(() => () => { if (musicFileUrl) URL.revokeObjectURL(musicFileUrl); }, [musicFileUrl]);
 
   const audioSrc = musicFileUrl ?? (music ? `/music/${encodeURIComponent(music)}` : undefined);
+  const hasAudio = Boolean(audioSrc);
+
+  // La musique commence avec la vidéo, et la vidéo dure exactement l'extrait choisi
+  // (raccourci si le son se termine avant).
+  const clampDuration = (d: number) => Math.min(MAX_DURATION, Math.max(MIN_DURATION, Math.floor(d)));
+  const start = ytChoice || !hasAudio ? 0 : excerpt.start;
+  const duration = !hasAudio
+    ? silentDuration
+    : ytChoice
+      ? clampDuration(Math.min(ytChoice.excerpt.length, (ytChoice.video.duration ?? Infinity) - ytChoice.excerpt.start))
+      : clampDuration(Math.min(excerpt.length, audioTotal ? audioTotal - excerpt.start : Infinity));
 
   // Photo choisie avant la fin du chargement de la page (téléphone lent) : l'événement a été
   // perdu, on la reprend au démarrage.
@@ -347,20 +366,39 @@ export default function Creator({ templates, blobUpload }: { templates: Template
       setError("La musique est trop lourde (3 Mo maximum).");
       return;
     }
+    setMusic("");
+    setYtChoice(null);
+    setAudioTotal(null);
     setMusicFile(file);
     setMusicFileUrl(URL.createObjectURL(file));
+    setExcerpt({ start: 0, length: 15 });
+    setEditingExcerpt(true);
   }
 
-  /** Extrait YouTube : il commence déjà au bon moment (départ à 0) et fixe la durée de la vidéo. */
-  function onYoutubeExcerpt(file: File, length: number) {
-    onMusicFile(file);
-    setStart(0);
-    setDuration(Math.min(MAX_DURATION, Math.max(MIN_DURATION, length)));
+  /** Extrait YouTube : déjà découpé côté serveur (il commence au début de la vidéo). */
+  function onYoutubeExcerpt(file: File, choice: YoutubeChoice) {
+    setError(null);
+    setMusic("");
+    setAudioTotal(null);
+    setMusicFile(file);
+    setMusicFileUrl(URL.createObjectURL(file));
+    setYtChoice(choice);
+    setEditingExcerpt(false);
   }
 
-  function clearMusicFile() {
+  function onLibraryMusic(name: string) {
     setMusicFile(null);
     setMusicFileUrl(null);
+    setYtChoice(null);
+    setAudioTotal(null);
+    setMusic(name);
+    setExcerpt({ start: 0, length: 15 });
+    setEditingExcerpt(Boolean(name));
+  }
+
+  /** Retire le son : la vidéo sera muette. */
+  function clearMusic() {
+    onLibraryMusic("");
   }
 
   const ticker = useRef<number | undefined>(undefined);
@@ -561,7 +599,7 @@ export default function Creator({ templates, blobUpload }: { templates: Template
             {playing ? `■ ${formatTime(position)} / ${formatTime(duration)}` : "▶ Lire l'aperçu"}
           </button>
           <p className="truncate text-xs text-zinc-500">
-            {musicFile || music ? `🎵 ${musicFile ? musicFile.name : labelFor(music)}` : "🔇 sans son"} · {duration} s
+            {hasAudio ? `🎵 ${ytChoice ? ytChoice.video.title : musicFile ? musicFile.name : labelFor(music)}` : "🔇 sans son"} · {duration} s
           </p>
           {clip && (
             <p className={`text-xs ${clip.error ? "text-red-300" : clip.url ? "text-green-400" : "text-sky-300"}`}>
@@ -610,37 +648,72 @@ export default function Creator({ templates, blobUpload }: { templates: Template
 
       <section className="flex flex-col gap-3">
         <label className="font-semibold" htmlFor="music">Musique</label>
-        {musicFile ? (
-          <div className="flex items-center gap-3">
-            <span className="flex-1 truncate text-zinc-300">🎵 {musicFile.name}</span>
-            <button type="button" onClick={clearMusicFile} className="rounded-xl bg-zinc-800 px-4 py-3">Retirer</button>
-          </div>
+        {!hasAudio ? (
+          <>
+            <select id="music" value={music} onChange={(e) => onLibraryMusic(e.target.value)} className={input}>
+              <option value="">Aucune (vidéo sans son)</option>
+              {library.map((m) => (
+                <option key={m} value={m}>{labelFor(m)}</option>
+              ))}
+            </select>
+            <label className="cursor-pointer text-center text-sm text-sky-400 underline">
+              ou envoyer un fichier audio (3 Mo max)
+              <input type="file" accept="audio/*" className="sr-only" onChange={(e) => onMusicFile(e.target.files?.[0])} />
+            </label>
+            <YoutubePicker onPick={onYoutubeExcerpt} />
+            <label className="flex flex-col gap-1">
+              <span>Durée de la vidéo (sans son) : {silentDuration} s</span>
+              <input type="range" min={MIN_DURATION} max={MAX_DURATION} step={1} value={silentDuration} onChange={(e) => setSilentDuration(Number(e.target.value))} className="h-10" />
+            </label>
+          </>
         ) : (
-          <select id="music" value={music} onChange={(e) => setMusic(e.target.value)} className={input}>
-            <option value="">Aucune (vidéo sans son)</option>
-            {library.map((m) => (
-              <option key={m} value={m}>{labelFor(m)}</option>
-            ))}
-          </select>
-        )}
-        <label className="cursor-pointer text-center text-sm text-sky-400 underline">
-          {musicFile ? "Choisir un autre fichier" : "ou envoyer un fichier audio (3 Mo max)"}
-          <input type="file" accept="audio/*" className="sr-only" onChange={(e) => onMusicFile(e.target.files?.[0])} />
-        </label>
-        <YoutubePicker onPick={onYoutubeExcerpt} />
+          <div className="flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-3">
+            <div className="flex flex-col">
+              <span className="truncate font-semibold">🎵 {ytChoice ? ytChoice.video.title : musicFile ? musicFile.name : labelFor(music)}</span>
+              <span className="text-sm text-zinc-400">
+                {ytChoice ? "YouTube" : musicFile ? "Fichier envoyé" : "Bibliothèque"} · extrait{" "}
+                {formatTime(ytChoice ? ytChoice.excerpt.start : excerpt.start)} →{" "}
+                {formatTime((ytChoice ? ytChoice.excerpt.start : excerpt.start) + duration)} · vidéo de {duration} s
+              </span>
+            </div>
 
-        <label className="flex flex-col gap-1">
-          <span>Départ dans la musique : {start} s</span>
-          <input type="range" min={0} max={180} step={1} value={start} onChange={(e) => setStart(Number(e.target.value))} className="h-10" />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span>Durée de la vidéo : {duration} s</span>
-          <input type="range" min={MIN_DURATION} max={MAX_DURATION} step={1} value={duration} onChange={(e) => setDuration(Number(e.target.value))} className="h-10" />
-        </label>
-        <audio ref={audioRef} src={audioSrc} preload="metadata" />
-        <button type="button" onClick={listen} disabled={!audioSrc} className={`${button} bg-zinc-800`}>
-          {playing ? "■ Arrêter" : "▶ Écouter l'extrait"}
-        </button>
+            {editingExcerpt && !ytChoice && (
+              <div className="flex flex-col gap-3 rounded-xl bg-zinc-950 p-3">
+                <ExcerptFields key={audioSrc} value={excerpt} onChange={setExcerpt} />
+                {audioTotal !== null && excerpt.start >= audioTotal && (
+                  <p className="text-sm text-red-300">Le début dépasse la fin du son ({formatTime(audioTotal)}).</p>
+                )}
+                <button type="button" onClick={() => setEditingExcerpt(false)} className="min-h-11 rounded-xl bg-white font-semibold text-black">
+                  OK
+                </button>
+              </div>
+            )}
+            {editingExcerpt && ytChoice && (
+              <YoutubePicker initial={ytChoice} onPick={onYoutubeExcerpt} onClose={() => setEditingExcerpt(false)} />
+            )}
+
+            <div className="grid grid-cols-3 gap-2">
+              <button type="button" onClick={listen} className="min-h-11 rounded-xl bg-zinc-800 text-sm font-semibold">
+                {playing ? "■ Arrêter" : "▶ Écouter"}
+              </button>
+              <button type="button" onClick={() => setEditingExcerpt((v) => !v)} className="min-h-11 rounded-xl bg-zinc-800 text-sm font-semibold">
+                Modifier l&apos;extrait
+              </button>
+              <button type="button" onClick={clearMusic} className="min-h-11 rounded-xl bg-zinc-800 text-sm font-semibold">
+                Changer de son
+              </button>
+            </div>
+          </div>
+        )}
+        <audio
+          ref={audioRef}
+          src={audioSrc}
+          preload="metadata"
+          onLoadedMetadata={(e) => {
+            const d = e.currentTarget.duration;
+            setAudioTotal(Number.isFinite(d) ? d : null);
+          }}
+        />
       </section>
 
       {error && <p ref={errorRef} role="alert" className="rounded-xl bg-red-950 px-4 py-3 text-red-200">{error}</p>}

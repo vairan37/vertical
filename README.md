@@ -42,8 +42,8 @@ Sans token Blob, les fichiers vont dans `.data/files`.
 ## Utilisation
 
 En haut de « Créer », l'**aperçu exact** (calculé par le même moteur que la vidéo finale) suit
-tes réglages : photo, texte, template. « ▶ Lire l'aperçu » joue la musique choisie (départ et
-durée) avec les fondus ; avec un clip ou un GIF, l'aperçu bouge aussi (composé dans le navigateur
+tes réglages : photo, texte, template. « ▶ Lire l'aperçu » joue l'extrait de musique choisi
+avec les fondus ; avec un clip ou un GIF, l'aperçu bouge aussi (composé dans le navigateur
 avec le même cadrage que le serveur et le calque texte rendu par le serveur).
 
 1. Choisis une **photo** (réduite à 2000 px dans le navigateur avant l'envoi) **ou une vidéo**
@@ -52,9 +52,12 @@ avec le même cadrage que le serveur et le calque texte rendu par le serveur).
    plus courte que la vidéo, et son propre son est remplacé par la musique choisie. Avec un clip,
    la création prend à peu près la durée de la vidéo.
 2. Écris le texte (300 caractères max).
-3. Musique **facultative** : par défaut « Aucune », la vidéo est muette (piste audio silencieuse).
-   Sinon choisis une musique de `public/music/`, un son YouTube, ou envoie un fichier audio (3 Mo
-   max), et règle le point de départ et la durée (3 à 90 s, la limite des Reels publiés par l'API Instagram).
+3. Musique **facultative** : par défaut « Aucune », la vidéo est muette (piste audio silencieuse)
+   et tu règles sa durée. Sinon choisis une musique de `public/music/`, un son YouTube, ou envoie
+   un fichier audio (3 Mo max), puis l'**extrait** (début + durée de 15 à 90 s) : la musique
+   commence avec la vidéo et **la vidéo dure exactement l'extrait** (raccourcie si le son se
+   termine avant). « Modifier l'extrait » change le début ou la durée à tout moment, « Changer de
+   son » repart du choix de la musique. 90 s est la limite des Reels publiés par l'API Instagram.
 4. « Créer la vidéo » : le serveur génère un MP4 1080x1920 (H.264 + AAC, 30 fps), l'enregistre et
    l'ajoute à « Mes vidéos ».
 5. « Mes vidéos » : grille des couvertures avec leur nom (comme un profil TikTok) et l'état

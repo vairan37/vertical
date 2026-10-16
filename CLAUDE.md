@@ -140,6 +140,10 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       composé côté client (fond + clip cadré via imageBox, partagé dans template-settings.ts + calque
       PNG transparent de /api/preview layer=overlay), le clip joue pendant « Lire l'aperçu ».
 - [x] Musique facultative : par défaut aucune -> vidéo muette (piste silencieuse anullsrc).
+- [x] Musique = extrait (début + durée, app/excerpt-fields.tsx) modifiable après coup ; la musique
+      commence avec la vidéo et la durée de la vidéo = durée de l'extrait (plus de curseurs
+      « départ » / « durée », sauf la durée d'une vidéo sans son). YouTube : extrait découpé côté
+      serveur, rouvert dans YoutubePicker (initial) pour le modifier.
 - [ ] Étape 2 : authentification (mot de passe unique, cookie httpOnly, limite de tentatives ;
       routes cron protégées par secret)
 - [ ] Étape 3 : publication (SocialProvider + simulation, écran de publication, Instagram, TikTok,
