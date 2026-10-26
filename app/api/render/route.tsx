@@ -7,6 +7,7 @@ import { join } from "node:path";
 import ffmpegPath from "ffmpeg-static";
 import { DbNotConfiguredError, getDb, videos } from "@/lib/db";
 import { listMusic, MAX_UPLOADED_MUSIC_BYTES, resolveMusic } from "@/lib/music";
+import { readLibraryImage, storeImage } from "@/lib/image-library";
 import { readSourceImage } from "@/lib/source-image";
 import {
   downloadStoredFile,
@@ -17,6 +18,7 @@ import {
   usesVercelBlob,
 } from "@/lib/storage";
 import { resolveTemplate } from "@/lib/templates";
+import { UUID } from "@/lib/videos";
 import { cookiesConfigured, ytDlpAvailable } from "@/lib/youtube";
 import { MAX_AUTHOR_LENGTH, MAX_DURATION, MAX_TEXT_LENGTH, MIN_DURATION, renderFrame } from "@/lib/template";
 import { probeVideo, RenderError, renderClip, renderVideo } from "@/lib/video";
@@ -44,7 +46,9 @@ export async function POST(request: Request) {
   // stockage, trop lourd pour passer par ici).
   const clipUrl = String(form.get("clipUrl") ?? "");
   if (clipUrl && !isStoredUrl(clipUrl)) return fail("Le clip vidéo est introuvable. Renvoie-le.");
-  const source = clipUrl ? null : await readSourceImage(form.get("image"));
+  // Photo : envoyée dans la requête, ou reprise de la bibliothèque (imageId).
+  const imageId = String(form.get("imageId") ?? "");
+  const source = clipUrl ? null : UUID.test(imageId) ? await readLibraryImage(imageId, true) : await readSourceImage(form.get("image"));
   if (source && "error" in source) return fail(source.error);
 
   const text = String(form.get("text") ?? "").trim();
@@ -89,8 +93,8 @@ export async function POST(request: Request) {
     if (source) {
       const framePng = await renderFrame(source.image, text, template.settings, { author });
       ({ mp4, cover } = await renderVideo({ framePng, music, start, duration }));
-      const ext = source.type === "image/png" ? "png" : "jpg";
-      imageUrl = (await saveFile(`images/${id}.${ext}`, source.buffer, source.type)).url;
+      // Bibliothèque : image déjà connue, ou nouvelle photo ajoutée (sans doublon).
+      imageUrl = "url" in source && typeof source.url === "string" ? source.url : await storeImage(source.buffer, source.type);
     } else {
       tmp = await mkdtemp(join(tmpdir(), "clip-"));
       const clipPath = join(tmp, "clip");

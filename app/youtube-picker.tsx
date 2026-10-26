@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import ExcerptFields, { formatTime, type Excerpt } from "./excerpt-fields";
+import { ui } from "./ui";
 
 export type YoutubeResult = { id: string; title: string; channel: string; duration: number | null; thumbnail: string };
 
@@ -97,14 +98,14 @@ export default function YoutubePicker({ onPick, initial, onClose }: Props) {
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="min-h-12 w-full rounded-xl bg-red-700 font-semibold">
-        Chercher un son sur YouTube
+      <button type="button" onClick={() => setOpen(true)} className={ui.secondary}>
+        Chercher sur YouTube
       </button>
     );
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-950 p-3">
+    <div className="flex flex-col gap-3 rounded-xl bg-zinc-950 p-3">
       <div className="flex items-center justify-between">
         <span className="font-semibold">{initial ? "Modifier l'extrait YouTube" : "Son YouTube"}</span>
         <button type="button" onClick={close} className="min-h-11 px-3 text-zinc-400">Fermer</button>
@@ -118,7 +119,7 @@ export default function YoutubePicker({ onPick, initial, onClose }: Props) {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Titre, artiste…"
             enterKeyHint="search"
-            className="min-w-0 flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-base"
+            className={`${ui.field} min-w-0 flex-1`}
           />
           <button type="submit" disabled={busy !== null} className="rounded-xl bg-white px-4 font-semibold text-black disabled:opacity-50">
             {busy === "search" ? "…" : "OK"}
@@ -164,7 +165,7 @@ export default function YoutubePicker({ onPick, initial, onClose }: Props) {
             Écouter sur YouTube pour trouver le bon moment
           </a>
           <ExcerptFields key={selected.id} value={excerpt} onChange={setExcerpt} />
-          <button type="button" onClick={useExcerpt} disabled={busy !== null} className="min-h-12 rounded-xl bg-white font-semibold text-black disabled:opacity-50">
+          <button type="button" onClick={useExcerpt} disabled={busy !== null} className={ui.primary}>
             {busy === "audio"
               ? "Récupération de l'extrait…"
               : `Utiliser ${formatTime(excerpt.start)} → ${formatTime(excerpt.start + excerpt.length)}`}

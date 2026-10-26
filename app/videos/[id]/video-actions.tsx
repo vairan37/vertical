@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteVideo, renameVideo } from "../actions";
+import { ui } from "../../ui";
 
 type Props = { id: string; title: string; placeholder: string; downloadUrl: string; name: string };
 
@@ -48,12 +49,11 @@ export default function VideoActions({ id, title, placeholder, downloadUrl, name
     });
   }
 
-  const button = "rounded-xl px-4 py-3 text-base font-semibold disabled:opacity-50";
 
   return (
     <div className="flex flex-col gap-3">
       <form onSubmit={rename} className="flex flex-col gap-2">
-        <label htmlFor="title" className="font-semibold">Nom</label>
+        <label htmlFor="title" className="text-sm text-zinc-400">Nom dans Mes vidéos</label>
         <div className="flex gap-2">
           <input
             id="title"
@@ -61,21 +61,21 @@ export default function VideoActions({ id, title, placeholder, downloadUrl, name
             maxLength={80}
             placeholder={placeholder}
             onChange={(e) => { setValue(e.target.value); setMessage(null); }}
-            className="min-w-0 flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-base"
+            className={`${ui.field} min-w-0 flex-1`}
           />
-          <button type="submit" disabled={saving || value.trim() === saved} className={`${button} bg-white text-black`}>
+          <button type="submit" disabled={saving || value.trim() === saved} className={ui.secondary}>
             {saving ? "…" : "OK"}
           </button>
         </div>
       </form>
       {message && (
-        <p role="status" className={`rounded-xl px-4 py-3 ${message.ok ? "bg-green-950 text-green-200" : "bg-red-950 text-red-200"}`}>
+        <p role="status" className={message.ok ? ui.ok : ui.error}>
           {message.text}
         </p>
       )}
       <div className="grid grid-cols-2 gap-2">
-        <a href={downloadUrl} className={`${button} bg-zinc-800 text-center`}>Télécharger</a>
-        <button type="button" onClick={remove} disabled={deleting} className={`${button} bg-red-950 text-red-200`}>
+        <a href={downloadUrl} className={ui.secondary}>Télécharger</a>
+        <button type="button" onClick={remove} disabled={deleting} className={ui.danger}>
           {deleting ? "Suppression…" : "Supprimer"}
         </button>
       </div>

@@ -8,19 +8,20 @@ import { parseSettings } from "@/lib/template-settings";
 import { listTemplates, type Template } from "@/lib/templates";
 import SubmitButton from "../videos/submit-button";
 import { createTemplate, duplicateTemplate, setDefaultTemplate } from "./actions";
+import { ui } from "../ui";
 
 export const metadata: Metadata = { title: "Templates · vertical" };
 
 export default function TemplatesPage() {
   return (
-    <main className="mx-auto w-full max-w-md flex-1 p-4 pb-12">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Templates</h1>
+    <main className={ui.page}>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className={ui.title}>Templates</h1>
         <form action={createTemplate}>
-          <SubmitButton className="min-h-11 rounded-xl bg-white px-4 font-semibold text-black">+ Nouvelle</SubmitButton>
+          <SubmitButton className={ui.secondary}>+ Nouvelle</SubmitButton>
         </form>
       </div>
-      <Suspense fallback={<p className="text-zinc-400">Chargement…</p>}>
+      <Suspense fallback={<p className={ui.hint}>Chargement…</p>}>
         <TemplateList />
       </Suspense>
     </main>
@@ -35,7 +36,7 @@ async function TemplateList() {
   } catch (error) {
     console.error("Lecture des templates impossible", error);
     return (
-      <p role="alert" className="rounded-xl bg-red-950 px-4 py-3 text-red-200">
+      <p role="alert" className={ui.error}>
         {error instanceof DbNotConfiguredError ? error.message : "Impossible de lire les templates."}
       </p>
     );
@@ -46,7 +47,7 @@ async function TemplateList() {
   return (
     <ul className="grid grid-cols-2 gap-3">
       {items.map((t) => (
-        <li key={t.id} className="flex flex-col gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-2">
+        <li key={t.id} className="flex flex-col gap-2 rounded-2xl bg-zinc-900 p-2">
           <Link href={`/templates/${t.id}`} className="flex flex-col gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -61,11 +62,11 @@ async function TemplateList() {
             <span className="px-1 text-sm text-green-400">Par défaut ✓</span>
           ) : (
             <form action={setDefaultTemplate.bind(null, t.id)}>
-              <SubmitButton className="min-h-11 w-full rounded-lg bg-zinc-800 text-sm">Par défaut</SubmitButton>
+              <SubmitButton className={`${ui.secondary} w-full`}>Par défaut</SubmitButton>
             </form>
           )}
           <form action={duplicateTemplate.bind(null, t.id)}>
-            <SubmitButton className="min-h-11 w-full rounded-lg bg-zinc-800 text-sm">Dupliquer</SubmitButton>
+            <SubmitButton className="min-h-10 w-full text-sm text-zinc-400">Dupliquer</SubmitButton>
           </form>
         </li>
       ))}

@@ -12,6 +12,7 @@ import {
   type TemplateSettings,
 } from "@/lib/template-settings";
 import { deleteTemplate, updateTemplate } from "../actions";
+import { ui } from "../../ui";
 
 type Props = { id: string; initialName: string; initialSettings: TemplateSettings };
 
@@ -72,8 +73,7 @@ export default function Editor({ id, initialName, initialSettings }: Props) {
     });
   }
 
-  const input = "w-full rounded-xl bg-zinc-900 border border-zinc-700 px-4 py-3 text-base";
-  const button = "w-full rounded-xl px-4 py-4 text-base font-semibold disabled:opacity-50";
+  const input = ui.field;
 
   const slider = (key: "textY" | "textSize" | "imageY" | "imageScale", label: string, unit: string) => (
     <label className="flex flex-col gap-1">
@@ -98,7 +98,7 @@ export default function Editor({ id, initialName, initialSettings }: Props) {
         <input value={name} maxLength={60} onChange={(e) => { setName(e.target.value); setMessage(null); }} className={input} />
       </label>
 
-      <div className="sticky top-14 z-[5] -mx-4 flex justify-center bg-background/95 px-4 py-2 backdrop-blur">
+      <div className="sticky top-0 z-[5] -mx-4 flex justify-center bg-background/95 px-4 py-2 backdrop-blur">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={previewSrc}
@@ -113,8 +113,8 @@ export default function Editor({ id, initialName, initialSettings }: Props) {
         <input value={sample} maxLength={300} onChange={(e) => setSample(e.target.value)} className={input} />
       </label>
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className="mb-2 font-semibold">Texte</legend>
+      <fieldset className={ui.card}>
+        <legend className={`${ui.label} float-left mb-1 w-full`}>Texte</legend>
         {slider("textY", "Position verticale", "%")}
         {slider("textSize", "Taille", "px")}
         <label className="flex flex-col gap-1">
@@ -131,8 +131,8 @@ export default function Editor({ id, initialName, initialSettings }: Props) {
         </label>
       </fieldset>
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className="mb-2 font-semibold">Image</legend>
+      <fieldset className={ui.card}>
+        <legend className={`${ui.label} float-left mb-1 w-full`}>Image</legend>
         <div className="flex flex-col gap-2">
           <span>Cadrage</span>
           <div className="grid grid-cols-3 gap-2" role="radiogroup">
@@ -164,15 +164,15 @@ export default function Editor({ id, initialName, initialSettings }: Props) {
       </fieldset>
 
       {message && (
-        <p role="status" className={`rounded-xl px-4 py-3 ${message.ok ? "bg-green-950 text-green-200" : "bg-red-950 text-red-200"}`}>
+        <p role="status" className={message.ok ? ui.ok : ui.error}>
           {message.text}
         </p>
       )}
 
-      <button type="button" onClick={save} disabled={saving || !dirty} className={`${button} bg-white text-black`}>
+      <button type="button" onClick={save} disabled={saving || !dirty} className={ui.primary}>
         {saving ? "Enregistrement…" : dirty ? "Enregistrer" : "Enregistrée"}
       </button>
-      <button type="button" onClick={remove} disabled={deleting} className={`${button} bg-red-950 text-red-200`}>
+      <button type="button" onClick={remove} disabled={deleting} className="min-h-11 text-sm text-red-300 disabled:opacity-50">
         {deleting ? "Suppression…" : "Supprimer la template"}
       </button>
     </div>

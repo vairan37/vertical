@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useActionState } from "react";
 import { signIn } from "./actions";
+import { ui } from "../ui";
 
 export default function LoginForm() {
   const next = useSearchParams().get("next") ?? "/";
@@ -18,15 +19,15 @@ export default function LoginForm() {
           required
           autoFocus
           autoComplete="current-password"
-          className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-base"
+          className={ui.field}
         />
       </label>
       {error && (
-        <p role="alert" className="rounded-xl bg-red-950 px-4 py-3 text-red-200">
+        <p role="alert" className={ui.error}>
           {error}
         </p>
       )}
-      <button type="submit" disabled={pending} className="min-h-12 rounded-xl bg-white font-semibold text-black disabled:opacity-50">
+      <button type="submit" disabled={pending} className={ui.primary}>
         {pending ? "Connexion…" : "Se connecter"}
       </button>
     </form>

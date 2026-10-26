@@ -12,8 +12,10 @@ import {
 } from "@/lib/template-settings";
 import { EMPTY_TIKTOK_OPTIONS, tiktokOptionsError, type CreatorInfo, type TikTokOptions } from "@/lib/tiktok-options";
 import ExcerptFields, { type Excerpt } from "./excerpt-fields";
+import ImageLibrary, { type LibraryImage } from "./image-library";
 import PausingVideo from "./pausing-video";
 import TikTokFields from "./tiktok-fields";
+import { ui } from "./ui";
 import YoutubePicker, { type YoutubeChoice } from "./youtube-picker";
 
 const MAX_IMAGE_SIDE = 2000;
@@ -160,6 +162,10 @@ export default function Creator({
   connected: Record<Platform, boolean>;
 }) {
   const [image, setImage] = useState<Blob | null>(null);
+  // Image reprise de la bibliothèque (déjà dans le stockage : rien à renvoyer).
+  const [libraryImage, setLibraryImage] = useState<LibraryImage | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [clip, setClip] = useState<Clip | null>(null);
   const uploadAbort = useRef<AbortController | null>(null);
   const [previewImage, setPreviewImage] = useState<Blob | null>(null);
@@ -255,6 +261,7 @@ export default function Creator({
         const form = new FormData();
         // Clip ou GIF : l'aperçu est composé ici (fond + clip qui joue + calque texte du serveur).
         if (clip) form.set("layer", "overlay");
+        else if (libraryImage) form.set("imageId", libraryImage.id);
         else if (previewImage) form.set("image", previewImage, "apercu.jpg");
         form.set("text", text);
         form.set("author", author);
@@ -280,7 +287,7 @@ export default function Creator({
     };
     // clip : seul « est-ce un clip ? » compte (coins arrondis), pas la progression de l'envoi.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewImage, text, author, templateId, Boolean(clip)]);
+  }, [previewImage, libraryImage?.id, text, author, templateId, Boolean(clip)]);
 
   // Libère les URL locales quand elles changent.
   const clipLocalUrl = clip?.localUrl;
@@ -351,6 +358,7 @@ export default function Creator({
       const kind = file.type === "image/gif" ? "gif" : "video";
       const meta = kind === "gif" ? await gifFrame(file) : await clipFrame(file);
       setImage(null);
+      setLibraryImage(null);
       setPreviewImage(meta.frame);
       setClip({
         name: file.name,
@@ -377,11 +385,23 @@ export default function Creator({
     setClip(null);
     try {
       const resized = await resizeImage(file);
+      setLibraryImage(null);
       setImage(resized);
       setPreviewImage(await resizeImage(resized, PREVIEW_IMAGE_SIDE));
     } catch {
       setError("Cette image n'a pas pu être lue. Essaie une photo JPEG ou PNG.");
     }
+  }
+
+  /** Image choisie dans la bibliothèque : remplace la photo ou le clip. */
+  function onLibraryImage(picked: LibraryImage) {
+    uploadAbort.current?.abort();
+    setError(null);
+    setClip(null);
+    setImage(null);
+    setPreviewImage(null);
+    setLibraryImage(picked);
+    setLibraryOpen(false);
   }
 
   function onMusicFile(file: File | undefined) {
@@ -501,7 +521,7 @@ export default function Creator({
 
   async function create() {
     setError(null);
-    if (!image && !clip) return setError("Choisis une photo ou une vidéo.");
+    if (!image && !clip && !libraryImage) return setError("Choisis une photo ou une vidéo.");
     if (clip && clip.error) return setError(`Le clip n'a pas été envoyé : ${clip.error} Choisis-le à nouveau.`);
     if (clip && !clip.url) return setError(`Envoi du clip en cours (${clip.progress} %) : attends la fin avant de créer la vidéo.`);
     if (publishTo.tiktok) {
@@ -520,6 +540,7 @@ export default function Creator({
     try {
       const form = new FormData();
       if (clip?.url) form.set("clipUrl", clip.url);
+      else if (libraryImage) form.set("imageId", libraryImage.id);
       else if (image) form.set("image", image, "image.jpg");
       form.set("text", text);
       form.set("title", title);
@@ -593,17 +614,18 @@ export default function Creator({
   // Lu uniquement côté client (false au rendu serveur) pour éviter un écart d'hydratation.
   const canShare = useSyncExternalStore(noop, canShareVideo, () => false);
 
-  const input = "w-full rounded-xl bg-zinc-900 border border-zinc-700 px-4 py-3 text-base";
-  const button = "w-full rounded-xl px-4 py-4 text-base font-semibold disabled:opacity-50";
+  const hasIllustration = Boolean(image || clip || libraryImage);
+  const willPublish = (publishTo.instagram && connected.instagram) || (publishTo.tiktok && connected.tiktok);
+  const soundLabel = ytChoice ? ytChoice.video.title : musicFile ? musicFile.name : labelFor(music);
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Aperçu fixe en haut : il reste visible pendant qu'on règle le texte, la template, la musique. */}
+    <div className="flex flex-col gap-4">
+      {/* Aperçu fixe en haut : il reste visible pendant qu'on règle le reste. */}
       <section
         aria-label="Aperçu"
-        className="sticky top-14 z-[5] -mx-4 -mt-2 flex gap-3 border-b border-zinc-800 bg-background/95 px-4 py-3 backdrop-blur"
+        className="sticky top-0 z-[5] -mx-4 -mt-6 flex gap-4 border-b border-zinc-900 bg-background/95 px-4 py-3 backdrop-blur"
       >
-        <div className="relative aspect-[9/16] w-32 shrink-0 overflow-hidden rounded-xl bg-zinc-900">
+        <div className="relative aspect-[9/16] w-28 shrink-0 overflow-hidden rounded-xl bg-zinc-900">
           {clip ? (
             // Clip ou GIF : fond de la template, clip cadré comme au rendu (même imageBox), calque texte.
             <div
@@ -644,19 +666,11 @@ export default function Creator({
               className={`h-full w-full object-cover transition-opacity duration-300 ${preview.loading ? "opacity-60" : ""}`}
             />
           )}
-          {preview.loading && (
-            <span className="absolute inset-x-0 top-1 text-center text-[10px] text-zinc-300">Mise à jour…</span>
-          )}
           {preview.error && (
             <span className="absolute inset-x-1 top-1 rounded bg-red-950/90 px-1 py-1 text-center text-[10px] text-red-200">{preview.error}</span>
           )}
-          {!image && !clip && (
+          {!hasIllustration && (
             <label htmlFor="image" aria-label="Choisir une photo ou une vidéo" className="absolute inset-0 cursor-pointer" />
-          )}
-          {clip && (
-            <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 text-[10px] font-semibold">
-              ▶ {clip.kind === "gif" ? "GIF" : "CLIP"}
-            </span>
           )}
           {playing && (
             <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
@@ -664,103 +678,106 @@ export default function Creator({
             </div>
           )}
         </div>
-        <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
-          <p className="text-sm text-zinc-400">Aperçu exact de la vidéo</p>
-          <label htmlFor="image" className="flex min-h-12 cursor-pointer items-center justify-center rounded-xl bg-zinc-800 font-semibold">
-            {image || clip ? "Changer l'illustration" : "Photo ou vidéo"}
-          </label>
-          <button type="button" onClick={listen} className="min-h-12 rounded-xl bg-white font-semibold text-black disabled:opacity-50">
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-3">
+          <button type="button" onClick={listen} className={ui.primary}>
             {playing ? `■ ${formatTime(position)} / ${formatTime(duration)}` : "▶ Lire l'aperçu"}
           </button>
-          <p className="truncate text-xs text-zinc-500">
-            {hasAudio ? `🎵 ${ytChoice ? ytChoice.video.title : musicFile ? musicFile.name : labelFor(music)}` : "🔇 sans son"} · {duration} s
+          <p className="truncate text-sm text-zinc-400">
+            {hasAudio ? `🎵 ${soundLabel}` : "🔇 Sans son"} · {duration} s
           </p>
-          {clip && (
-            <p className={`text-xs ${clip.error ? "text-red-300" : clip.url ? "text-green-400" : "text-sky-300"}`}>
-              {clip.error
-                ? `Envoi échoué : ${clip.error}`
-                : clip.url
-                  ? clip.kind === "gif"
-                    ? "GIF envoyé ✓ (en boucle)"
-                    : `Clip envoyé ✓ (${Math.round(clip.duration)} s${clip.duration < duration ? ", en boucle" : ""})`
-                  : `Envoi du clip… ${clip.progress} %`}
-            </p>
-          )}
+          {preview.loading && <p className="text-xs text-zinc-500">Mise à jour de l&apos;aperçu…</p>}
         </div>
+      </section>
+
+      <section className={ui.card}>
+        <h2 className={ui.label}>Illustration</h2>
+        <div className="grid grid-cols-2 gap-2">
+          <label htmlFor="image" className={`${ui.secondary} cursor-pointer`}>
+            Photo ou vidéo
+          </label>
+          <button type="button" onClick={() => setLibraryOpen(true)} className={ui.secondary}>
+            Bibliothèque
+          </button>
+        </div>
+        {clip && (
+          <p className={`text-sm ${clip.error ? "text-red-300" : clip.url ? "text-green-400" : "text-sky-300"}`}>
+            {clip.error
+              ? `Envoi échoué : ${clip.error}`
+              : clip.url
+                ? clip.kind === "gif"
+                  ? "GIF prêt ✓ (en boucle)"
+                  : `Clip prêt ✓ · ${Math.round(clip.duration)} s${clip.duration < duration ? ", en boucle" : ""}`
+                : `Envoi du clip… ${clip.progress} %`}
+          </p>
+        )}
+        {libraryImage && <p className="text-sm text-green-400">Image de la bibliothèque ✓</p>}
         <input ref={imageInputRef} id="image" type="file" accept="image/*,video/mp4,video/quicktime,video/webm,image/gif" className="sr-only" onChange={(e) => onImage(e.target.files?.[0])} />
       </section>
 
-      <section className="flex flex-col gap-2">
-        <label className="font-semibold" htmlFor="title">Nom <span className="font-normal text-zinc-500">(optionnel, visible dans Mes vidéos)</span></label>
-        <input id="title" value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} className={input} placeholder="Par défaut : le texte de la vidéo" />
-      </section>
-
-      {templates.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <label className="font-semibold" htmlFor="template">Template</label>
-          <select id="template" value={templateId} onChange={(e) => setTemplateId(e.target.value)} className={input}>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-        </section>
-      )}
-
-      <section className="flex flex-col gap-2">
-        <label className="font-semibold" htmlFor="text">Texte</label>
+      <section className={ui.card}>
+        <label htmlFor="text" className={ui.label}>Texte</label>
         <textarea
           id="text"
           rows={3}
           maxLength={MAX_TEXT_LENGTH}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className={input}
+          className={ui.field}
           placeholder="Le texte affiché sur la vidéo"
         />
-        <span className="self-end text-sm text-zinc-500">{text.length}/{MAX_TEXT_LENGTH}</span>
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <label className="font-semibold" htmlFor="author">
-          Auteur <span className="font-normal text-zinc-500">(optionnel, ex. le rappeur)</span>
-        </label>
         <input
           id="author"
+          aria-label="Auteur"
           value={author}
           maxLength={60}
           onChange={(e) => setAuthor(e.target.value)}
-          className={input}
-          placeholder="Affiché « - Nom » sous le texte, à droite"
+          className={ui.field}
+          placeholder="Auteur (optionnel) : « - Nom » sous le texte"
         />
+        {templates.length > 1 && (
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pt-1" role="radiogroup" aria-label="Template">
+            {templates.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="radio"
+                aria-checked={templateId === t.id}
+                onClick={() => setTemplateId(t.id)}
+                className={templateId === t.id ? ui.chipOn : ui.chip}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
-      <section className="flex flex-col gap-3">
-        <label className="font-semibold" htmlFor="music">Musique</label>
+      <section className={ui.card}>
+        <label className={ui.label} htmlFor="music">Son</label>
         {!hasAudio ? (
           <>
-            <select id="music" value={music} onChange={(e) => onLibraryMusic(e.target.value)} className={input}>
-              <option value="">Aucune (vidéo sans son)</option>
+            <select id="music" value={music} onChange={(e) => onLibraryMusic(e.target.value)} className={ui.field}>
+              <option value="">Aucun (vidéo muette)</option>
               {library.map((m) => (
                 <option key={m} value={m}>{labelFor(m)}</option>
               ))}
             </select>
-            <label className="cursor-pointer text-center text-sm text-sky-400 underline">
-              ou envoyer un fichier audio (3 Mo max)
+            <YoutubePicker onPick={onYoutubeExcerpt} />
+            <label className={`${ui.link} cursor-pointer self-center text-sm`}>
+              Envoyer un fichier audio
               <input type="file" accept="audio/*" className="sr-only" onChange={(e) => onMusicFile(e.target.files?.[0])} />
             </label>
-            <YoutubePicker onPick={onYoutubeExcerpt} />
-            <label className="flex flex-col gap-1">
-              <span>Durée de la vidéo (sans son) : {silentDuration} s</span>
+            <label className="flex flex-col gap-1 text-sm">
+              <span>Durée de la vidéo : {silentDuration} s</span>
               <input type="range" min={MIN_DURATION} max={MAX_DURATION} step={1} value={silentDuration} onChange={(e) => setSilentDuration(Number(e.target.value))} className="h-10" />
             </label>
           </>
         ) : (
-          <div className="flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-3">
+          <>
             <div className="flex flex-col">
-              <span className="truncate font-semibold">🎵 {ytChoice ? ytChoice.video.title : musicFile ? musicFile.name : labelFor(music)}</span>
-              <span className="text-sm text-zinc-400">
-                {ytChoice ? "YouTube" : musicFile ? "Fichier envoyé" : "Bibliothèque"} · extrait{" "}
-                {formatTime(ytChoice ? ytChoice.excerpt.start : excerpt.start)} →{" "}
+              <span className="truncate font-semibold">🎵 {soundLabel}</span>
+              <span className={ui.hint}>
+                {ytChoice ? "YouTube" : musicFile ? "Fichier" : "Bibliothèque"} · {formatTime(ytChoice ? ytChoice.excerpt.start : excerpt.start)} →{" "}
                 {formatTime((ytChoice ? ytChoice.excerpt.start : excerpt.start) + duration)} · vidéo de {duration} s
               </span>
             </div>
@@ -771,7 +788,7 @@ export default function Creator({
                 {audioTotal !== null && excerpt.start >= audioTotal && (
                   <p className="text-sm text-red-300">Le début dépasse la fin du son ({formatTime(audioTotal)}).</p>
                 )}
-                <button type="button" onClick={() => setEditingExcerpt(false)} className="min-h-11 rounded-xl bg-white font-semibold text-black">
+                <button type="button" onClick={() => setEditingExcerpt(false)} className={ui.primary}>
                   OK
                 </button>
               </div>
@@ -781,17 +798,17 @@ export default function Creator({
             )}
 
             <div className="grid grid-cols-3 gap-2">
-              <button type="button" onClick={listen} className="min-h-11 rounded-xl bg-zinc-800 text-sm font-semibold">
-                {playing ? "■ Arrêter" : "▶ Écouter"}
+              <button type="button" onClick={listen} className={ui.secondary}>
+                {playing ? "■ Stop" : "▶ Écouter"}
               </button>
-              <button type="button" onClick={() => setEditingExcerpt((v) => !v)} className="min-h-11 rounded-xl bg-zinc-800 text-sm font-semibold">
-                Modifier l&apos;extrait
+              <button type="button" onClick={() => setEditingExcerpt((v) => !v)} className={ui.secondary}>
+                Extrait
               </button>
-              <button type="button" onClick={clearMusic} className="min-h-11 rounded-xl bg-zinc-800 text-sm font-semibold">
-                Changer de son
+              <button type="button" onClick={clearMusic} className={ui.secondary}>
+                Changer
               </button>
             </div>
-          </div>
+          </>
         )}
         <audio
           ref={audioRef}
@@ -804,28 +821,26 @@ export default function Creator({
         />
       </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-semibold">Publication</h2>
-        <label className="flex flex-col gap-2">
-          <span className="text-sm text-zinc-400">Légende et hashtags (Instagram et TikTok)</span>
-          <textarea
-            rows={3}
-            maxLength={2200}
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            className={input}
-            placeholder="Ex. : Le son du moment 🔥 #rap #son"
-          />
-        </label>
+      <section className={ui.card}>
+        <h2 className={ui.label}>Publication</h2>
+        <textarea
+          rows={2}
+          maxLength={2200}
+          aria-label="Légende et hashtags"
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          className={ui.field}
+          placeholder="Légende et #hashtags"
+        />
         {(Object.keys(PLATFORM_LABELS) as Platform[]).map((p) => (
-          <div key={p} className="flex flex-col gap-2">
-            <label className={`flex min-h-11 items-center justify-between gap-3 ${connected[p] ? "" : "opacity-60"}`}>
+          <div key={p} className="flex flex-col gap-3">
+            <label className={`flex min-h-11 items-center justify-between gap-3 ${connected[p] ? "" : "text-zinc-500"}`}>
               <span>
-                Publier sur {PLATFORM_LABELS[p]} dès la création
+                Publier sur {PLATFORM_LABELS[p]}
                 {!connected[p] && (
                   <>
-                    {" "}
-                    <Link href="/publiees" className="text-sm text-sky-400 underline">(compte à connecter)</Link>
+                    {" · "}
+                    <Link href="/publiees" className={`${ui.link} text-sm`}>connecter</Link>
                   </>
                 )}
               </span>
@@ -834,7 +849,7 @@ export default function Creator({
                 checked={publishTo[p] && connected[p]}
                 disabled={!connected[p]}
                 onChange={(e) => setPublishTo((v) => ({ ...v, [p]: e.target.checked }))}
-                className="h-6 w-6"
+                className="h-6 w-6 accent-white"
               />
             </label>
             {p === "tiktok" && publishTo.tiktok && connected.tiktok && (
@@ -844,24 +859,32 @@ export default function Creator({
         ))}
       </section>
 
-      {error && <p ref={errorRef} role="alert" className="rounded-xl bg-red-950 px-4 py-3 text-red-200">{error}</p>}
+      {/* Options rares, repliées. */}
+      <section className={ui.card}>
+        <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen} className={`${ui.label} flex items-center justify-between text-left`}>
+          Plus d&apos;options <span aria-hidden>{moreOpen ? "−" : "+"}</span>
+        </button>
+        {moreOpen && (
+          <>
+            <input
+              id="title"
+              aria-label="Nom dans Mes vidéos"
+              value={title}
+              maxLength={80}
+              onChange={(e) => setTitle(e.target.value)}
+              className={ui.field}
+              placeholder="Nom dans Mes vidéos (par défaut : le texte)"
+            />
+            {templates.length === 1 && <p className={ui.hint}>Template : {templates[0].name}</p>}
+          </>
+        )}
+      </section>
 
-      <button type="button" onClick={create} disabled={busy} className={`${button} bg-white text-black`}>
-        {busy
-          ? `Création en cours… ${elapsed} s`
-          : (publishTo.instagram && connected.instagram) || (publishTo.tiktok && connected.tiktok)
-            ? "Créer et publier"
-            : "Créer la vidéo"}
-      </button>
-      {busy && (
-        <p className="-mt-3 text-center text-sm text-zinc-400">
-          {clip ? "Avec un clip, compte à peu près la durée de la vidéo (jusqu'à 2-3 min)." : "Ça prend en général 5 à 20 secondes."}
-        </p>
-      )}
+      {error && <p ref={errorRef} role="alert" className={ui.error}>{error}</p>}
 
       {video && (
-        <section ref={videoRef} className="flex flex-col gap-3">
-          <p className="font-semibold text-green-400">Vidéo créée ✓</p>
+        <section ref={videoRef} className={ui.card}>
+          <h2 className="font-semibold text-green-400">Vidéo créée ✓</h2>
           {(Object.keys(publishLines) as Platform[]).map((p) => {
             const l = publishLines[p]!;
             const color = { running: "text-sky-300", done: "text-green-400", waiting: "text-amber-200", error: "text-red-300" }[l.state];
@@ -871,25 +894,32 @@ export default function Creator({
               </p>
             );
           })}
-          {Object.keys(publishLines).length > 0 && (
-            <Link href={`/videos/${video.id}`} className="text-sm text-sky-400 underline">
-              Suivre la publication sur la page de la vidéo
-            </Link>
-          )}
           <PausingVideo src={video.url} controls playsInline preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black" />
-          <Link href="/videos" className={`${button} bg-white text-center text-black`}>
-            Voir dans Mes vidéos
-          </Link>
-          <a href={video.downloadUrl} download="vertical.mp4" className={`${button} bg-zinc-800 text-center`}>
-            Télécharger
-          </a>
-          {canShare && (
-            <button type="button" onClick={share} disabled={!videoBlob} className={`${button} bg-zinc-800`}>
-              {videoBlob ? "Partager" : "Préparation du partage…"}
-            </button>
-          )}
+          <div className={`grid gap-2 ${canShare ? "grid-cols-3" : "grid-cols-2"}`}>
+            <Link href={`/videos/${video.id}`} className={ui.secondary}>Ouvrir</Link>
+            {canShare && (
+              <button type="button" onClick={share} disabled={!videoBlob} className={ui.secondary}>
+                {videoBlob ? "Partager" : "…"}
+              </button>
+            )}
+            <a href={video.downloadUrl} download="vertical.mp4" className={ui.secondary}>Télécharger</a>
+          </div>
         </section>
       )}
+
+      {/* Action principale, toujours à portée de pouce (au-dessus de la barre d'onglets). */}
+      <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-[5] -mx-4 bg-gradient-to-t from-background via-background to-transparent px-4 pb-3 pt-6">
+        <button type="button" onClick={create} disabled={busy} className={ui.primary}>
+          {busy ? `Création… ${elapsed} s` : willPublish ? "Créer et publier" : "Créer la vidéo"}
+        </button>
+        {busy && (
+          <p className="mt-2 text-center text-xs text-zinc-400">
+            {clip ? "Avec un clip : environ la durée de la vidéo." : "En général 5 à 20 secondes."}
+          </p>
+        )}
+      </div>
+
+      {libraryOpen && <ImageLibrary onPick={onLibraryImage} onClose={() => setLibraryOpen(false)} />}
     </div>
   );
 }

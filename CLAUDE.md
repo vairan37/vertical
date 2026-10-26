@@ -40,7 +40,9 @@ les fichiers sont enregistrés dans `.data/files` et servis par `/api/files/[nam
 app/
   layout.tsx          layout racine (lang="fr", thème sombre, navigation, métadonnées PWA)
   manifest.ts         manifest PWA ; service-worker.tsx enregistre public/sw.js
-  nav.tsx             barre de navigation (Créer / Mes vidéos / Templates)
+  nav.tsx             barre d'onglets en bas (Créer / Vidéos / Publiées / Templates)
+  ui.ts               styles partagés (règles de design, voir « Design »)
+  image-library.tsx   bibliothèque d'images (panneau) ; image-actions.ts : retrait
   page.tsx            page d'accueil -> outil de création
   login/              page de connexion (mot de passe unique), actions signIn / signOut
   conditions/, confidentialite/  pages légales publiques (exigées par TikTok et Meta)
@@ -58,6 +60,7 @@ app/
   api/uploads/        envoi direct d'un clip vidéo vers Blob (URL présignée, OIDC) ; multipart en local
   api/files/[name]/   sert le stockage local (dev sans Vercel Blob)
   api/youtube/        search (GET ?q=) et audio (POST {id,start,length} -> MP3)
+  api/images/         GET : bibliothèque d'images
   youtube-picker.tsx  recherche YouTube dans la section Musique du formulaire
   tiktok-fields.tsx   réglages d'une publication TikTok (conformes aux règles d'audit TikTok)
   api/publish/        POST : publie une vidéo sur un réseau (ou reprend le suivi)
@@ -83,6 +86,7 @@ lib/
   accounts.ts         comptes connectés : liste, enregistrement (chiffré), tokens renouvelés
   publish.ts          publishVideo : publication + suivi + enregistrement des statuts
   crypto.ts           chiffrement des tokens (AES-256-GCM)
+  image-library.ts    bibliothèque d'images : liste, ajout sans doublon, lecture, retrait
   oauth.ts            adresse de retour OAuth, cookie state
   tiktok-options.ts   options TikTok (visibilité, interactions, déclaration) + validation, partagé
 drizzle/              migrations SQL générées (ne pas modifier à la main)
@@ -115,6 +119,23 @@ public/music/         musiques .mp3 incorporées dans les vidéos
   (suppression de données, force push) sans demander.
 - Vérifier la doc officielle actuelle (Meta for Developers, developers.tiktok.com) avant chaque
   intégration. Si une contrainte d'API contredit le cahier des charges, le signaler avec la source.
+
+## Design
+
+Objectif : l'appli la plus simple possible au pouce, sans rien de parasite. Styles partagés dans
+`app/ui.ts` (à utiliser plutôt que de nouvelles classes ad hoc).
+
+- Une colonne (max-w-md), marges de 16 px, 24 px entre les blocs, 12 px dans un bloc.
+- Une seule action principale par écran (`ui.primary`, bouton blanc plein) ; sur « Créer », elle
+  est collée en bas, au-dessus de la barre d'onglets. Le reste en `ui.secondary` (gris) ; les
+  actions rares ou destructives en texte discret (Déconnecter, Dupliquer, Supprimer la template).
+- Navigation : barre d'onglets en bas (icône + libellé), zones de toucher ≥ 44 px.
+- Blocs = `ui.card` avec un titre `ui.label` (petites capitales grises). Pas de cadres imbriqués.
+- La couleur porte un sens et rien d'autre : vert réussi, rouge erreur, ambre attention, bleu
+  lien / en cours. Pas de couleur de marque sur les boutons (YouTube, etc.).
+- Divulgation progressive : options rares repliées (« Plus d'options », réglages TikTok ouverts
+  au moment de publier). Pas de texte d'aide quand un libellé ou un placeholder suffit.
+- Messages près de l'action concernée, en français, avec la solution.
 
 ## Contraintes des plateformes
 
@@ -199,6 +220,14 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       création » (comptes connectés) ; après le rendu, le navigateur appelle /api/publish pour
       chaque réseau coché. /api/publish lit légende et options sur la vidéo (et les met à jour si
       fournies). Scope TikTok video.publish à ajouter dans l'app (Direct Post activé).
+- [x] Bibliothèque d'images (table images, lib/image-library.ts, app/image-library.tsx) : chaque
+      photo utilisée entre automatiquement (empreinte SHA-256, sans doublon) ; « Bibliothèque »
+      dans Créer pour la réutiliser (imageId envoyé à /api/preview et /api/render, rien n'est
+      renvoyé) ; « Gérer » pour en retirer. Migration 0009 : reprise des photos des anciennes
+      vidéos ; leurs doublons sont fusionnés à l'ouverture (empreinte calculée à la volée).
+      Supprimer une vidéo garde sa photo si elle est en bibliothèque.
+- [x] Refonte de l'interface selon les règles « Design » (barre d'onglets en bas, blocs, action
+      principale collée en bas de « Créer », options repliées).
 - [ ] Étape 4 : tableau de bord des vues (liste, totaux, courbes, Vercel Cron quotidien,
       bouton "Actualiser", import des anciennes vidéos)
 - [ ] Étape 4 bis : file de publication automatique (demande de Victor). Les vidéos sont ajoutées

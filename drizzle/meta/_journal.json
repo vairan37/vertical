@@ -57,6 +57,20 @@
       "when": 1793023617539,
       "tag": "0007_video_caption",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793026371408,
+      "tag": "0008_image_library",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793026372422,
+      "tag": "0009_image_library_backfill",
+      "breakpoints": true
     }
   ]
 }

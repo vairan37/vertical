@@ -76,17 +76,16 @@ export function isStoredUrl(url: string) {
 }
 
 /**
- * Copie un fichier de notre stockage dans `dest` (dossier temporaire), sans dépasser `maxBytes`.
+ * Lit un fichier de notre stockage, sans dépasser `maxBytes`.
  * Refuse toute autre URL : le serveur ne télécharge jamais une adresse arbitraire.
  */
-export async function downloadStoredFile(url: string, dest: string, maxBytes: number): Promise<void> {
+export async function readStoredFile(url: string, maxBytes: number): Promise<Buffer> {
   const local = url.match(LOCAL_URL);
   if (local && !process.env.VERCEL) {
     const data = await readLocalFile(decodeURIComponent(local[1]));
     if (!data) throw new Error("Fichier introuvable.");
     if (data.length > maxBytes) throw new Error("Fichier trop lourd.");
-    await writeFile(dest, data);
-    return;
+    return data;
   }
   if (!BLOB_URL.test(url)) throw new Error("Adresse de fichier refusée.");
   const res = await fetch(url);
@@ -99,5 +98,10 @@ export async function downloadStoredFile(url: string, dest: string, maxBytes: nu
     if (size > maxBytes) throw new Error("Fichier trop lourd.");
     chunks.push(Buffer.from(chunk));
   }
-  await writeFile(dest, Buffer.concat(chunks));
+  return Buffer.concat(chunks);
+}
+
+/** Copie un fichier de notre stockage dans `dest` (dossier temporaire). Voir readStoredFile. */
+export async function downloadStoredFile(url: string, dest: string, maxBytes: number): Promise<void> {
+  await writeFile(dest, await readStoredFile(url, maxBytes));
 }

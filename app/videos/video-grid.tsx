@@ -13,8 +13,8 @@ export default function VideoGrid({
 }) {
   if (items.length === 0 && !showNew) return <>{empty}</>;
   return (
-    <>
-      <p className="px-4 pb-3 text-sm text-zinc-400">
+    <div className="-mx-4 flex flex-col gap-2">
+      <p className="px-4 text-sm text-zinc-500">
         {items.length} vidéo{items.length > 1 ? "s" : ""}
       </p>
       <ul className="grid grid-cols-3 gap-0.5">
@@ -33,7 +33,7 @@ export default function VideoGrid({
           <VideoTile key={v.id} video={v} />
         ))}
       </ul>
-    </>
+    </div>
   );
 }
 

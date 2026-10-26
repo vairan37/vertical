@@ -9,6 +9,7 @@ import { displayName, getVideo, PLATFORMS } from "@/lib/videos";
 import PausingVideo from "../../pausing-video";
 import PublishSection from "../publish-section";
 import VideoActions from "./video-actions";
+import { ui } from "../../ui";
 
 export const metadata: Metadata = { title: "Vidéo · vertical" };
 
@@ -20,9 +21,9 @@ const dateFormat = new Intl.DateTimeFormat("fr-FR", {
 
 export default function VideoPage({ params }: PageProps<"/videos/[id]">) {
   return (
-    <main className="mx-auto w-full max-w-md flex-1 p-4 pb-12">
-      <Link href="/videos" className="mb-4 inline-block py-2 text-sky-400">← Mes vidéos</Link>
-      <Suspense fallback={<p className="text-zinc-400">Chargement…</p>}>
+    <main className={ui.page}>
+      <Link href="/videos" className="-mb-2 self-start py-2 text-sky-400">← Mes vidéos</Link>
+      <Suspense fallback={<p className={ui.hint}>Chargement…</p>}>
         <VideoDetail params={params} />
       </Suspense>
     </main>
@@ -37,7 +38,7 @@ async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["para
   const published = PLATFORMS.filter((p) => video.publications[p.id]?.status === "published");
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <PausingVideo
         src={video.videoUrl}
         poster={video.coverUrl ?? undefined}
@@ -47,12 +48,10 @@ async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["para
         className="mx-auto aspect-[9/16] w-full max-w-xs rounded-xl bg-black"
       />
 
-      <VideoActions id={video.id} title={video.title ?? ""} placeholder={video.text || "Sans titre"} downloadUrl={video.downloadUrl} name={displayName(video)} />
-
-      <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">Publication</h2>
+      <section className={ui.card}>
+        <h2 className={ui.label}>Publication</h2>
         {published.length === 1 && (
-          <p className="rounded-lg bg-amber-950 px-3 py-2 text-sm text-amber-200">
+          <p className={ui.warn}>
             ⚠ Publiée seulement sur {published[0].label}
           </p>
         )}
@@ -70,8 +69,13 @@ async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["para
         />
       </section>
 
-      <section className="flex flex-col gap-1 text-sm text-zinc-400">
-        <h2 className="mb-1 font-semibold text-foreground">Détails</h2>
+      <section className={ui.card}>
+        <h2 className={ui.label}>Vidéo</h2>
+        <VideoActions id={video.id} title={video.title ?? ""} placeholder={video.text || "Sans titre"} downloadUrl={video.downloadUrl} name={displayName(video)} />
+      </section>
+
+      <section className={`${ui.card} gap-1 text-sm text-zinc-400`}>
+        <h2 className={`${ui.label} mb-2`}>Détails</h2>
         <p>Créée le {dateFormat.format(video.createdAt)}</p>
         {video.text && <p className="whitespace-pre-wrap">Texte : {video.text}</p>}
         {video.author && <p>Auteur : {video.author}</p>}

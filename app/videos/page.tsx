@@ -4,14 +4,15 @@ import { Suspense } from "react";
 import { DbNotConfiguredError } from "@/lib/db";
 import { listVideos, type VideoWithPublications } from "@/lib/videos";
 import VideoGrid from "./video-grid";
+import { ui } from "../ui";
 
 export const metadata: Metadata = { title: "Mes vidéos · vertical" };
 
 export default function VideosPage() {
   return (
-    <main className="mx-auto w-full max-w-md flex-1 pb-12">
-      <h1 className="p-4 text-2xl font-bold">Mes vidéos</h1>
-      <Suspense fallback={<p className="px-4 text-zinc-400">Chargement…</p>}>
+    <main className={ui.page}>
+      <h1 className={ui.title}>Mes vidéos</h1>
+      <Suspense fallback={<p className={ui.hint}>Chargement…</p>}>
         <VideoList />
       </Suspense>
     </main>
@@ -26,7 +27,7 @@ async function VideoList() {
   } catch (error) {
     console.error("Lecture des vidéos impossible", error);
     return (
-      <p role="alert" className="mx-4 rounded-xl bg-red-950 px-4 py-3 text-red-200">
+      <p role="alert" className={ui.error}>
         {error instanceof DbNotConfiguredError
           ? error.message
           : "Impossible de lire les vidéos depuis la base de données."}

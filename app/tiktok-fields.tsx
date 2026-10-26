@@ -9,6 +9,7 @@ import {
   type CreatorInfo,
   type TikTokOptions,
 } from "@/lib/tiktok-options";
+import { ui } from "./ui";
 
 type Props = {
   value: TikTokOptions;
@@ -82,7 +83,7 @@ export default function TikTokFields({ value, onChange, onCreator }: Props) {
   );
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl bg-zinc-950 p-3">
+    <div className="flex flex-col gap-3 rounded-xl bg-zinc-950 p-3 text-sm">
       <p className="text-sm text-zinc-300">
         Compte TikTok : <span className="font-semibold text-foreground">{creator.nickname}</span>
         {creator.username ? <span className="text-zinc-500"> (@{creator.username})</span> : null}
@@ -93,7 +94,7 @@ export default function TikTokFields({ value, onChange, onCreator }: Props) {
         <select
           value={value.privacyLevel}
           onChange={(e) => set({ privacyLevel: e.target.value })}
-          className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-base"
+          className={ui.field}
         >
           <option value="" disabled>Choisir…</option>
           {creator.privacyOptions.map((p) => (

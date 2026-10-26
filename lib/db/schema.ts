@@ -114,3 +114,15 @@ export const loginAttempts = pgTable("login_attempts", {
   ip: text("ip").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Bibliothèque d'images : chaque photo utilisée pour une vidéo y est ajoutée (sans doublon, par
+ * empreinte SHA-256) pour être réutilisée. Les images d'avant la bibliothèque n'ont pas d'empreinte.
+ */
+export const images = pgTable("images", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  url: text("url").notNull().unique(),
+  hash: text("hash").unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -12,21 +12,20 @@ import VideoGrid from "../videos/video-grid";
 import { signOut } from "../login/actions";
 import { disconnectAccount } from "./actions";
 import ConnectButton from "./connect-button";
+import { ui } from "../ui";
 
 export const metadata: Metadata = { title: "Publiées · vertical" };
 
 export default function PublishedPage({ searchParams }: PageProps<"/publiees">) {
   return (
-    <main className="mx-auto w-full max-w-md flex-1 pb-12">
-      <h1 className="p-4 pb-2 text-2xl font-bold">Publiées</h1>
-      <Suspense fallback={<p className="px-4 text-zinc-400">Chargement…</p>}>
+    <main className={ui.page}>
+      <h1 className={ui.title}>Publiées</h1>
+      <Suspense fallback={<p className={ui.hint}>Chargement…</p>}>
         <Notice searchParams={searchParams} />
         <PublishedContent />
       </Suspense>
-      <form action={signOut} className="mt-10 px-4">
-        <SubmitButton className="min-h-12 w-full rounded-xl bg-zinc-900 text-sm text-zinc-400">
-          Se déconnecter de vertical
-        </SubmitButton>
+      <form action={signOut} className="mt-4">
+        <SubmitButton className="min-h-11 w-full text-sm text-zinc-500">Se déconnecter de vertical</SubmitButton>
       </form>
     </main>
   );
@@ -39,7 +38,7 @@ async function Notice({ searchParams }: { searchParams: PageProps<"/publiees">["
   const connected = PLATFORMS.find((p) => p.id === params.connecte);
   if (!error && !connected) return null;
   return (
-    <p role="status" className={`mx-4 mb-3 rounded-xl px-4 py-3 ${error ? "bg-red-950 text-red-200" : "bg-green-950 text-green-200"}`}>
+    <p role="status" className={error ? ui.error : ui.ok}>
       {error ?? `Compte ${connected?.label} connecté ✓`}
     </p>
   );
@@ -54,7 +53,7 @@ async function PublishedContent() {
   } catch (error) {
     console.error("Lecture des publications impossible", error);
     return (
-      <p role="alert" className="mx-4 rounded-xl bg-red-950 px-4 py-3 text-red-200">
+      <p role="alert" className={ui.error}>
         {error instanceof DbNotConfiguredError ? error.message : "Impossible de lire les publications."}
       </p>
     );
@@ -67,12 +66,11 @@ async function PublishedContent() {
   return (
     <>
       {/* En-tête façon profil : comptes connectés et compteurs. */}
-      <section aria-label="Comptes" className="mx-4 mb-4 flex flex-col gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-3">
-        <h2 className="px-1 text-sm font-semibold uppercase tracking-wide text-zinc-400">Comptes</h2>
+      <section aria-label="Comptes" className={ui.card}>
+        <h2 className={ui.label}>Comptes</h2>
         {isDryRun() && (
-          <p className="rounded-lg bg-amber-950 px-3 py-2 text-sm text-amber-200">
-            Mode simulation : connexions et publications sont simulées, rien n&apos;est envoyé aux réseaux.
-            Pour publier pour de vrai : variable DRY_RUN=false sur Vercel (voir README).
+          <p className={ui.warn}>
+            Mode simulation : rien n&apos;est envoyé aux réseaux (DRY_RUN=false sur Vercel pour publier).
           </p>
         )}
         {PLATFORMS.map((p) => (
@@ -84,7 +82,7 @@ async function PublishedContent() {
         items={published}
         showNew={false}
         empty={
-          <p className="px-4 text-zinc-400">
+          <p className={ui.hint}>
             Aucune vidéo publiée pour l&apos;instant. Dans{" "}
             <Link href="/videos" className="text-sky-400 underline">Mes vidéos</Link>, ouvre une vidéo et
             touche « Marquer publiée », ou publie-la une fois les comptes connectés.
@@ -134,12 +132,12 @@ function AccountRow({
         </span>
         <span className="text-xs text-zinc-500">
           {published} vidéo{published > 1 ? "s" : ""} publiée{published > 1 ? "s" : ""}
-          {account?.validUntil && !expired ? ` · connexion valable jusqu'au ${dateFormat.format(account.validUntil)}` : ""}
+          {account?.validUntil && !expired ? ` · jusqu'au ${dateFormat.format(account.validUntil)}` : ""}
         </span>
       </div>
       {account && !expired ? (
         <form action={disconnectAccount.bind(null, platform)}>
-          <SubmitButton className="min-h-11 rounded-lg bg-zinc-800 px-3 text-sm">Déconnecter</SubmitButton>
+          <SubmitButton className="min-h-11 px-2 text-sm text-zinc-500">Déconnecter</SubmitButton>
         </form>
       ) : (
         <ConnectButton platform={platform} again={expired} />

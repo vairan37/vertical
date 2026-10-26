@@ -6,11 +6,12 @@ import { usesVercelBlob } from "@/lib/storage";
 import { parseSettings } from "@/lib/template-settings";
 import { listTemplates } from "@/lib/templates";
 import Creator, { type TemplateOption } from "./creator";
+import { ui } from "./ui";
 
 export default function Home() {
   return (
-    <main className="mx-auto w-full max-w-md flex-1 p-4 pb-12">
-      <h1 className="mb-6 text-2xl font-bold">Nouvelle vidéo</h1>
+    <main className={ui.page}>
+      <h1 className="sr-only">Nouvelle vidéo</h1>
       <Suspense fallback={<p className="text-zinc-400">Chargement…</p>}>
         <CreatorWithTemplates />
       </Suspense>

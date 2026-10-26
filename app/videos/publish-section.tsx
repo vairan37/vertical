@@ -7,6 +7,7 @@ import { EMPTY_TIKTOK_OPTIONS, tiktokOptionsError, type CreatorInfo, type TikTok
 import type { Publication } from "@/lib/videos";
 import TikTokFields from "../tiktok-fields";
 import { cancelPublication, setManualPublication } from "./actions";
+import { ui } from "../ui";
 
 export type PlatformInfo = {
   id: Platform;
@@ -43,6 +44,8 @@ export default function PublishSection({
   const [caption, setCaption] = useState(defaultCaption);
   const [tiktok, setTiktok] = useState<TikTokOptions>(defaultTiktok ?? EMPTY_TIKTOK_OPTIONS);
   const [creator, setCreator] = useState<CreatorInfo | null>(null);
+  // Réglages TikTok repliés : ils s'ouvrent au premier « Publier » sur TikTok.
+  const [tiktokOpen, setTiktokOpen] = useState(false);
   const [busy, setBusy] = useState<Platform | null>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -92,8 +95,8 @@ export default function PublishSection({
   return (
     <div className="flex flex-col gap-3">
       {dryRun && (
-        <p className="rounded-lg bg-amber-950 px-3 py-2 text-sm text-amber-200">
-          Mode simulation : « Publier » ne publie rien pour de vrai.
+        <p className={ui.warn}>
+          Mode simulation : rien n&apos;est envoyé aux réseaux.
         </p>
       )}
       {needsCaption && (
@@ -104,12 +107,10 @@ export default function PublishSection({
             maxLength={2200}
             rows={3}
             onChange={(e) => setCaption(e.target.value)}
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-base"
+            className={ui.field}
           />
         </label>
       )}
-
-      {tiktokRow && canStart(tiktokRow) && <TikTokFields value={tiktok} onChange={setTiktok} onCreator={setCreator} />}
 
       {platforms.map(({ id, label, publication, connected }) => {
         const status = publication ? STATUS[publication.status] : { text: "Non publiée", className: "text-zinc-500" };
@@ -117,7 +118,7 @@ export default function PublishSection({
         const fromApi = Boolean(publication?.externalId);
         const isBusy = busy === id;
         return (
-          <div key={id} className="flex flex-col gap-2 rounded-xl bg-zinc-900 px-3 py-2">
+          <div key={id} className="flex flex-col gap-2 rounded-xl bg-zinc-950 px-3 py-2">
             <div className="flex min-h-11 items-center gap-3">
               <span className="w-20 shrink-0 font-medium">{label}</span>
               <span className={`flex-1 text-sm ${status.className}`}>
@@ -143,11 +144,20 @@ export default function PublishSection({
               <p className={`text-sm ${publication.status === "failed" ? "text-red-300" : "text-amber-200"}`}>{publication.error}</p>
             )}
 
+            {id === "tiktok" && tiktokOpen && tiktokRow && canStart(tiktokRow) && (
+              <TikTokFields value={tiktok} onChange={setTiktok} onCreator={setCreator} />
+            )}
+
             <div className="flex flex-wrap gap-2">
               {publication?.status !== "published" && publication?.status !== "processing" && (
                 connected ? (
-                  <button type="button" disabled={busy !== null} onClick={() => publish(id, true)} className={`${small} bg-white font-semibold text-black`}>
-                    {publication?.status === "failed" ? "Réessayer" : "Publier"}
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() => (id === "tiktok" && !tiktokOpen ? setTiktokOpen(true) : publish(id, true))}
+                    className={`${small} bg-white font-semibold text-black`}
+                  >
+                    {id === "tiktok" && tiktokOpen ? "Confirmer" : publication?.status === "failed" ? "Réessayer" : "Publier"}
                   </button>
                 ) : (
                   <a href="/publiees" className={`${small} flex items-center bg-zinc-800`}>Connecter le compte</a>
@@ -180,7 +190,7 @@ export default function PublishSection({
       })}
 
       {error && (
-        <p role="alert" className="rounded-xl bg-red-950 px-3 py-2 text-sm text-red-200">{error}</p>
+        <p role="alert" className={ui.error}>{error}</p>
       )}
     </div>
   );

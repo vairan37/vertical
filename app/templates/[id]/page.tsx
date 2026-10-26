@@ -5,14 +5,15 @@ import { Suspense } from "react";
 import { parseSettings } from "@/lib/template-settings";
 import { getTemplate } from "@/lib/templates";
 import Editor from "./editor";
+import { ui } from "../../ui";
 
 export const metadata: Metadata = { title: "Modifier la template · vertical" };
 
 export default function TemplatePage({ params }: PageProps<"/templates/[id]">) {
   return (
-    <main className="mx-auto w-full max-w-md flex-1 p-4 pb-12">
-      <Link href="/templates" className="mb-4 inline-block py-2 text-sky-400">← Templates</Link>
-      <Suspense fallback={<p className="text-zinc-400">Chargement…</p>}>
+    <main className={ui.page}>
+      <Link href="/templates" className="-mb-2 self-start py-2 text-sky-400">← Templates</Link>
+      <Suspense fallback={<p className={ui.hint}>Chargement…</p>}>
         <TemplateEditor params={params} />
       </Suspense>
     </main>
