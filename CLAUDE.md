@@ -156,5 +156,13 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       page "Comptes", README de création des apps)
 - [ ] Étape 4 : tableau de bord des vues (liste, totaux, courbes, Vercel Cron quotidien,
       bouton "Actualiser", import des anciennes vidéos)
+- [ ] Étape 4 bis : file de publication automatique (demande de Victor). Les vidéos sont ajoutées
+      à une file ordonnée, publiées une par une aux heures de plus forte activité des abonnés.
+      Heures prises dans les insights Instagram (`online_followers`, à vérifier dans la doc Meta),
+      sinon calculées depuis les vues de ses propres vidéos, sinon créneaux réglés à la main.
+      Contraintes : le cron Vercel Hobby tourne une fois par jour au plus, à ±59 min près
+      (https://vercel.com/docs/cron-jobs/usage-and-pricing), donc il faut un planificateur externe
+      qui appelle une route protégée par secret, ou Vercel Pro. Côté TikTok, sans audit, la
+      publication se fait en brouillon ou en privé : ce n'est pas vraiment automatique.
 - [ ] Étape 5 : PWA (manifest, icônes, standalone, thème sombre, ergonomie mobile)
 - [ ] Étape 6 : finitions (erreurs, chargements, README final, checklist de mise en production)
