@@ -1,7 +1,7 @@
 "use server";
 
 import { requireAuth } from "@/lib/auth";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { getDb, publications, videos } from "@/lib/db";
 import { deleteFiles } from "@/lib/storage";
@@ -38,6 +38,19 @@ export async function setManualPublication(videoId: string, platform: Platform, 
         ),
       );
   }
+  refresh();
+}
+
+/**
+ * Abandonne une publication en cours ou échouée (efface son suivi, pas ce qui serait déjà sur le
+ * réseau). Une publication réussie n'est jamais effacée ici.
+ */
+export async function cancelPublication(videoId: string, platform: Platform) {
+  await requireAuth();
+  if (!UUID.test(videoId) || !PLATFORMS.includes(platform)) throw new Error("Requête invalide.");
+  await getDb()
+    .delete(publications)
+    .where(and(eq(publications.videoId, videoId), eq(publications.platform, platform), ne(publications.status, "published")));
   refresh();
 }
 

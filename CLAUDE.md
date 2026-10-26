@@ -75,6 +75,11 @@ lib/
   auth.ts             requireAuth / denyUnauthenticated, connexion avec limite d'essais
   storage.ts          Vercel Blob (ou disque local en dev)
   videos.ts           lecture des vidéos avec leurs publications
+  social/             SocialProvider : instagram.ts, tiktok.ts, simulation.ts (DRY_RUN) ; index.ts
+  accounts.ts         comptes connectés : liste, enregistrement (chiffré), tokens renouvelés
+  publish.ts          publishVideo : publication + suivi + enregistrement des statuts
+  crypto.ts           chiffrement des tokens (AES-256-GCM)
+  oauth.ts            adresse de retour OAuth, cookie state
 drizzle/              migrations SQL générées (ne pas modifier à la main)
 scripts/migrate.mjs   applique les migrations (ignoré si DATABASE_URL absente)
 scripts/fetch-yt-dlp.mjs télécharge bin/yt-dlp au build (version figée + SHA-256 vérifié ; bin/ ignoré par git)
@@ -108,11 +113,17 @@ public/music/         musiques .mp3 incorporées dans les vidéos
 
 ## Contraintes des plateformes
 
-- Instagram : compte Pro relié à une Page Facebook, Facebook Login. Reel = conteneur
-  (`media_type=REELS`, `video_url` publique) -> polling jusqu'à `FINISHED` -> `media_publish`.
-  90 s max, H.264. En mode dev Meta, seuls les testeurs publient. Vues via insights du média.
-- TikTok : Content Posting API (`video.upload`, `video.publish`). Sans audit, publication directe
-  privée. Mode brouillon (`/v2/post/publish/inbox/video/init/`) par défaut. Vues via Display API
+- Instagram : « Instagram API with Instagram Login » (graph.instagram.com, v26.0), compte
+  professionnel SANS Page Facebook (écart avec le cahier des charges, qui prévoyait Facebook Login +
+  Page : plus simple, validé par la doc developers.facebook.com/docs/instagram-platform/content-publishing).
+  Scopes instagram_business_basic + instagram_business_content_publish. Token long 60 jours,
+  renouvelable après 24 h. Reel = conteneur (`media_type=REELS`, `video_url` publique, `cover_url`)
+  -> polling `status_code` jusqu'à `FINISHED` -> `media_publish`. 100 publications / 24 h. Specs Reel :
+  MP4 faststart, H.264, AAC ≤ 48 kHz, 3 s à 15 min. En mode dev Meta, seuls les testeurs.
+- TikTok : Content Posting API, mode brouillon (`/v2/post/publish/inbox/video/init/`, scope
+  `video.upload` + `user.info.basic`). Envoi en FILE_UPLOAD (PULL_FROM_URL exige un domaine vérifié :
+  impossible avec Vercel Blob). Token 24 h + refresh 365 jours. 5 brouillons en attente / 24 h ;
+  statut SEND_TO_USER_INBOX tant que Victor n'a pas publié depuis l'appli. Vues via Display API
   (`video.list`). Pas de sons TikTok via l'API : musique incorporée dans la vidéo.
 
 ## Plan et avancement
@@ -161,8 +172,15 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       appellent requireAuth() et les routes API denyUnauthenticated() (lib/auth.ts) : à faire pour
       toute nouvelle action/route. Limite : 5 échecs/IP et 20 au total par 15 min (table
       login_attempts). /api/cron/* passe avec `Authorization: Bearer CRON_SECRET`.
-- [ ] Étape 3 : publication (SocialProvider + simulation, écran de publication, Instagram, TikTok,
-      page "Comptes", README de création des apps)
+- [x] Étape 3 : publication. lib/social : interface SocialProvider (types.ts), instagram.ts,
+      tiktok.ts, simulation.ts ; getProvider() choisit la simulation sauf si DRY_RUN=false (défaut
+      sûr). Identifiants simulés préfixés « sim_ » (un compte simulé ne sert pas en mode réel, et
+      inversement). Tokens chiffrés AES-256-GCM (lib/crypto.ts, TOKEN_ENCRYPTION_KEY), renouvelés
+      à l'usage (lib/accounts.ts getTokens). OAuth : /api/social/[platform]/connect et /callback
+      (state en cookie httpOnly). lib/publish.ts : publishVideo enregistre chaque étape en base
+      (processing + externalId, published, failed + raison) ; suivi 4 min max dans /api/publish
+      (maxDuration 300) ; « Vérifier » reprend un suivi, « Réessayer » relance. UI :
+      app/videos/publish-section.tsx. Testé en simulation ; vrai mode non testé (apps à créer).
 - [ ] Étape 4 : tableau de bord des vues (liste, totaux, courbes, Vercel Cron quotidien,
       bouton "Actualiser", import des anciennes vidéos)
 - [ ] Étape 4 bis : file de publication automatique (demande de Victor). Les vidéos sont ajoutées

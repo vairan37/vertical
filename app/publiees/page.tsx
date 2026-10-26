@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { listAccounts, type AccountInfo } from "@/lib/accounts";
 import { DbNotConfiguredError } from "@/lib/db";
 import type { Platform } from "@/lib/db";
+import { isDryRun } from "@/lib/social";
 import { listVideos, PLATFORMS, type VideoWithPublications } from "@/lib/videos";
 import SubmitButton from "../videos/submit-button";
 import VideoGrid from "../videos/video-grid";
@@ -14,11 +15,12 @@ import ConnectButton from "./connect-button";
 
 export const metadata: Metadata = { title: "Publiées · vertical" };
 
-export default function PublishedPage() {
+export default function PublishedPage({ searchParams }: PageProps<"/publiees">) {
   return (
     <main className="mx-auto w-full max-w-md flex-1 pb-12">
       <h1 className="p-4 pb-2 text-2xl font-bold">Publiées</h1>
       <Suspense fallback={<p className="px-4 text-zinc-400">Chargement…</p>}>
+        <Notice searchParams={searchParams} />
         <PublishedContent />
       </Suspense>
       <form action={signOut} className="mt-10 px-4">
@@ -27,6 +29,19 @@ export default function PublishedPage() {
         </SubmitButton>
       </form>
     </main>
+  );
+}
+
+/** Retour de connexion : « ?connecte=instagram » ou « ?erreur=… ». */
+async function Notice({ searchParams }: { searchParams: PageProps<"/publiees">["searchParams"] }) {
+  const params = await searchParams;
+  const error = typeof params.erreur === "string" ? params.erreur : null;
+  const connected = PLATFORMS.find((p) => p.id === params.connecte);
+  if (!error && !connected) return null;
+  return (
+    <p role="status" className={`mx-4 mb-3 rounded-xl px-4 py-3 ${error ? "bg-red-950 text-red-200" : "bg-green-950 text-green-200"}`}>
+      {error ?? `Compte ${connected?.label} connecté ✓`}
+    </p>
   );
 }
 
@@ -54,6 +69,12 @@ async function PublishedContent() {
       {/* En-tête façon profil : comptes connectés et compteurs. */}
       <section aria-label="Comptes" className="mx-4 mb-4 flex flex-col gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-3">
         <h2 className="px-1 text-sm font-semibold uppercase tracking-wide text-zinc-400">Comptes</h2>
+        {isDryRun() && (
+          <p className="rounded-lg bg-amber-950 px-3 py-2 text-sm text-amber-200">
+            Mode simulation : connexions et publications sont simulées, rien n&apos;est envoyé aux réseaux.
+            Pour publier pour de vrai : variable DRY_RUN=false sur Vercel (voir README).
+          </p>
+        )}
         {PLATFORMS.map((p) => (
           <AccountRow key={p.id} platform={p.id} label={p.label} account={accounts[p.id]} published={count(p.id)} />
         ))}
@@ -87,7 +108,9 @@ function AccountRow({
   account?: AccountInfo;
   published: number;
 }) {
-  const expired = account?.expired ?? false;
+  // Compte connecté en simulation alors que le site publie pour de vrai (ou l'inverse) : à refaire.
+  const otherMode = account ? account.simulated !== isDryRun() : false;
+  const expired = (account?.expired ?? false) || otherMode;
   return (
     <div className="flex min-h-14 items-center gap-3 rounded-xl bg-zinc-950 px-3 py-2">
       <span
@@ -103,13 +126,15 @@ function AccountRow({
         <span className={`truncate text-sm ${account && !expired ? "text-green-400" : expired ? "text-amber-300" : "text-zinc-500"}`}>
           {!account
             ? "Non connecté"
-            : expired
-              ? "Connexion expirée"
+            : otherMode
+              ? account.simulated ? "Connecté en simulation : reconnecte-le" : "Vrai compte : reconnecte-le pour simuler"
+              : expired
+                ? "Connexion expirée"
               : (account.accountName ?? account.accountId)}
         </span>
         <span className="text-xs text-zinc-500">
           {published} vidéo{published > 1 ? "s" : ""} publiée{published > 1 ? "s" : ""}
-          {account?.expiresAt && !expired ? ` · connexion valable jusqu'au ${dateFormat.format(account.expiresAt)}` : ""}
+          {account?.validUntil && !expired ? ` · connexion valable jusqu'au ${dateFormat.format(account.validUntil)}` : ""}
         </span>
       </div>
       {account && !expired ? (
@@ -117,7 +142,7 @@ function AccountRow({
           <SubmitButton className="min-h-11 rounded-lg bg-zinc-800 px-3 text-sm">Déconnecter</SubmitButton>
         </form>
       ) : (
-        <ConnectButton platform={platform} />
+        <ConnectButton platform={platform} again={expired} />
       )}
     </div>
   );

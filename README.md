@@ -125,6 +125,59 @@ L'aperçu se met à jour en direct. Supprimer une template ne supprime pas les v
 Pour ajouter une police : dépose un fichier `.ttf` **statique** (pas de police variable) dans
 `assets/fonts/` et ajoute-la dans `FONTS` (`lib/template-settings.ts`).
 
+## Publication sur Instagram et TikTok
+
+Sur la page d'une vidéo (onglet Vidéos) : légende Instagram, puis **Publier** (Instagram) ou
+**Envoyer en brouillon** (TikTok). Un échec affiche sa raison et propose **Réessayer** ; une
+publication en cours propose **Vérifier** et **Abandonner**. Les comptes se connectent dans la
+page **Publiées**.
+
+### 1. D'abord en simulation (aucune app nécessaire)
+
+Sur Vercel, ajoute `TOKEN_ENCRYPTION_KEY` (longue chaîne aléatoire), puis redéploie. Sans
+`DRY_RUN=false`, le site est en **simulation** : « Connecter » crée un faux compte, « Publier »
+n'envoie rien (ce qui serait envoyé apparaît dans les logs Vercel, préfixé `[DRY_RUN]`).
+
+### 2. App Instagram (Meta)
+
+Méthode « Instagram API with Instagram Login » : **pas besoin de Page Facebook**.
+
+1. Dans l'appli Instagram : passe ton compte en **compte professionnel** (Créateur ou Entreprise).
+2. [developers.facebook.com](https://developers.facebook.com/apps) → **Créer une app** → cas
+   d'usage « Gérer les messages et le contenu sur Instagram » (API Instagram).
+3. Produit Instagram → **API setup with Instagram login** :
+   - note l'**Instagram app ID** et l'**Instagram app secret** (différents de ceux de l'app
+     Facebook) ;
+   - « Business login settings » → **OAuth redirect URIs** :
+     `https://vertical-mu.vercel.app/api/social/instagram/callback`.
+4. **Rôles de l'app** → ajoute ton compte Instagram comme **testeur**, puis accepte
+   l'invitation dans Instagram (Paramètres → Apps et sites web). Tant que l'app est en
+   développement, seuls les testeurs peuvent la connecter. Pour tes propres comptes, l'accès
+   standard suffit : pas besoin d'examen par Meta.
+5. Vercel : `INSTAGRAM_APP_ID` et `INSTAGRAM_APP_SECRET`.
+
+La connexion dure 60 jours. Elle est renouvelée automatiquement quand tu publies (au plus une
+fois par jour). Après 60 jours sans publication, il faut se reconnecter.
+
+### 3. App TikTok
+
+1. [developers.tiktok.com](https://developers.tiktok.com) → **Manage apps** → **Connect an app**.
+2. Ajoute les produits **Login Kit** et **Content Posting API**, avec les scopes
+   `user.info.basic` et `video.upload`.
+3. Login Kit → **Redirect URI** : `https://vertical-mu.vercel.app/api/social/tiktok/callback`.
+4. Pour commencer sans examen par TikTok : crée un **Sandbox**, ajoute ton compte TikTok comme
+   « target user », et utilise la clé et le secret du Sandbox.
+5. Vercel : `TIKTOK_CLIENT_KEY` et `TIKTOK_CLIENT_SECRET`.
+
+Les vidéos arrivent **en brouillon** dans l'appli TikTok. Touche la notification pour
+publier, puis « Vérifier » sur le site. TikTok limite à **5 brouillons en attente par
+24 h**.
+
+### 4. Passer en vrai
+
+Sur Vercel, `DRY_RUN=false`, puis redéploie. Dans « Publiées », reconnecte les deux comptes : les
+comptes simulés ne marchent pas en mode réel. Teste d'abord sur une vidéo sans importance.
+
 ## Nettoyage des déploiements
 
 Chaque lundi, GitHub Actions lance `vercel remove vertical --safe`

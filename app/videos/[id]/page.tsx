@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { listAccounts } from "@/lib/accounts";
+import { isDryRun } from "@/lib/social";
 import { displayName, getVideo, PLATFORMS } from "@/lib/videos";
 import PausingVideo from "../../pausing-video";
-import PlatformRow from "../platform-row";
+import PublishSection from "../publish-section";
 import VideoActions from "./video-actions";
 
 export const metadata: Metadata = { title: "Vidéo · vertical" };
@@ -28,7 +30,7 @@ export default function VideoPage({ params }: PageProps<"/videos/[id]">) {
 
 async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["params"] }) {
   const { id } = await params;
-  const video = await getVideo(id);
+  const [video, accounts] = await Promise.all([getVideo(id), listAccounts()]);
   if (!video) notFound();
 
   const published = PLATFORMS.filter((p) => video.publications[p.id]?.status === "published");
@@ -53,9 +55,16 @@ async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["para
             ⚠ Publiée seulement sur {published[0].label}
           </p>
         )}
-        {PLATFORMS.map((p) => (
-          <PlatformRow key={p.id} videoId={video.id} platform={p.id} label={p.label} publication={video.publications[p.id]} />
-        ))}
+        <PublishSection
+          videoId={video.id}
+          defaultCaption={[video.text, video.author ? `- ${video.author}` : ""].filter(Boolean).join("\n")}
+          dryRun={isDryRun()}
+          platforms={PLATFORMS.map((p) => ({
+            ...p,
+            publication: video.publications[p.id],
+            connected: Boolean(accounts[p.id] && !accounts[p.id]?.expired && accounts[p.id]?.simulated === isDryRun()),
+          }))}
+        />
       </section>
 
       <section className="flex flex-col gap-1 text-sm text-zinc-400">
