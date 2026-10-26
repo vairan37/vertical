@@ -38,7 +38,8 @@ les fichiers sont enregistrés dans `.data/files` et servis par `/api/files/[nam
 
 ```
 app/
-  layout.tsx          layout racine (lang="fr", thème sombre, navigation)
+  layout.tsx          layout racine (lang="fr", thème sombre, navigation, métadonnées PWA)
+  manifest.ts         manifest PWA ; service-worker.tsx enregistre public/sw.js
   nav.tsx             barre de navigation (Créer / Mes vidéos / Templates)
   page.tsx            page d'accueil -> outil de création
   login/              page de connexion (mot de passe unique), actions signIn / signOut
@@ -172,5 +173,12 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       (https://vercel.com/docs/cron-jobs/usage-and-pricing), donc il faut un planificateur externe
       qui appelle une route protégée par secret, ou Vercel Pro. Côté TikTok, sans audit, la
       publication se fait en brouillon ou en privé : ce n'est pas vraiment automatique.
-- [ ] Étape 5 : PWA (manifest, icônes, standalone, thème sombre, ergonomie mobile)
+- [x] Étape 5 : PWA. app/manifest.ts (standalone, portrait, sombre), icônes public/icons
+      (générées une fois : dégradé + cadre 9:16 ; maskable avec marge), appleWebApp dans le layout,
+      marges safe-area. public/sw.js : aucun cache sauf public/offline.html, affichée quand une
+      page ne charge pas faute de réseau. Manifest, sw.js, offline.html et icons/ sont exclus de
+      proxy.ts (chargés sans cookie).
+- [x] Nettoyage hebdomadaire des déploiements Vercel : .github/workflows/vercel-cleanup.yml lance
+      `vercel remove vertical --safe` (secret GitHub VERCEL_TOKEN). Ne jamais retirer `--safe` :
+      sans lui, le projet entier est supprimé.
 - [ ] Étape 6 : finitions (erreurs, chargements, README final, checklist de mise en production)

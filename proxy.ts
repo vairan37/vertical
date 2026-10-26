@@ -20,6 +20,7 @@ export function proxy(request: NextRequest) {
   return NextResponse.redirect(url);
 }
 
+/** Fichiers publics : ce que le téléphone charge sans cookie pour installer la PWA. */
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline.html|icons/).*)"],
 };
