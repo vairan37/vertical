@@ -1,4 +1,5 @@
 import { denyUnauthenticated } from "@/lib/auth";
+import { isDryRun } from "@/lib/social";
 import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -160,6 +161,13 @@ export async function GET() {
     youtube: (await ytDlpAvailable())
       ? cookiesConfigured() ? "yt-dlp OK, cookies configurés" : "yt-dlp OK, cookies absents (téléchargement bloqué)"
       : "yt-dlp absent",
+    // Prêt pour le mode réel ? (présence des variables, jamais leurs valeurs)
+    publication: {
+      mode: isDryRun() ? "simulation (mettre DRY_RUN=false pour publier pour de vrai)" : "RÉEL",
+      chiffrement: (process.env.TOKEN_ENCRYPTION_KEY?.length ?? 0) >= 16 ? "OK" : "TOKEN_ENCRYPTION_KEY manquante",
+      instagram: process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_SECRET ? "app configurée" : "INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET manquants",
+      tiktok: process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET ? "app configurée" : "TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET manquants",
+    },
     // Noms (jamais les valeurs) des variables liées à Blob, pour le diagnostic.
     variablesBlob: Object.keys(process.env).filter((k) => k.includes("BLOB")),
   });
