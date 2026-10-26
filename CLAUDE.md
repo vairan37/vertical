@@ -181,7 +181,9 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       (state en cookie httpOnly). lib/publish.ts : publishVideo enregistre chaque étape en base
       (processing + externalId, published, failed + raison) ; suivi 4 min max dans /api/publish
       (maxDuration 300) ; « Vérifier » reprend un suivi, « Réessayer » relance. UI :
-      app/videos/publish-section.tsx. Testé en simulation ; vrai mode non testé (apps à créer).
+      app/videos/publish-section.tsx. Prod : DRY_RUN=false. TikTok connecté via une app en Sandbox
+      (clé et secret du Sandbox ; Content Posting API + scopes user.info.basic, video.upload,
+      video.list ; compte de Victor en Target user). App Instagram pas encore créée.
 - [ ] Étape 4 : tableau de bord des vues (liste, totaux, courbes, Vercel Cron quotidien,
       bouton "Actualiser", import des anciennes vidéos)
 - [ ] Étape 4 bis : file de publication automatique (demande de Victor). Les vidéos sont ajoutées
