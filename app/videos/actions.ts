@@ -76,9 +76,10 @@ export async function deleteVideo(id: string): Promise<string | null> {
   const [deleted] = await getDb().delete(videos).where(eq(videos.id, id)).returning();
   if (!deleted) return "Cette vidéo n'existe plus.";
   try {
-    // La photo reste si elle est dans la bibliothèque (réutilisable pour d'autres vidéos).
+    // La photo et le clip restent s'ils sont dans la bibliothèque (réutilisables).
     const keepImage = await isLibraryImage(deleted.imageUrl);
-    await deleteFiles([deleted.videoUrl, keepImage ? null : deleted.imageUrl, deleted.coverUrl, deleted.sourceVideoUrl]);
+    const keepClip = deleted.sourceVideoUrl ? await isLibraryImage(deleted.sourceVideoUrl) : false;
+    await deleteFiles([deleted.videoUrl, keepImage ? null : deleted.imageUrl, deleted.coverUrl, keepClip ? null : deleted.sourceVideoUrl]);
   } catch (error) {
     // La vidéo est déjà retirée de la base : un fichier orphelin n'est pas bloquant.
     console.error("Suppression des fichiers incomplète", error);

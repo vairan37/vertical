@@ -116,11 +116,14 @@ export const loginAttempts = pgTable("login_attempts", {
 });
 
 /**
- * Bibliothèque d'images : chaque photo utilisée pour une vidéo y est ajoutée (sans doublon, par
- * empreinte SHA-256) pour être réutilisée. Les images d'avant la bibliothèque n'ont pas d'empreinte.
+ * Bibliothèque : chaque photo (sans doublon, par empreinte SHA-256) et chaque clip ou GIF utilisés
+ * pour une vidéo y sont ajoutés pour être réutilisés. Les photos d'avant la bibliothèque n'ont pas
+ * d'empreinte (calculée à la volée).
  */
 export const images = pgTable("images", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** image (photo), video (clip) ou gif. Les clips n'ont pas d'empreinte (fichiers lourds). */
+  kind: text("kind").$type<"image" | "video" | "gif">().notNull().default("image"),
   url: text("url").notNull().unique(),
   hash: text("hash").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

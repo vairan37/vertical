@@ -86,7 +86,7 @@ lib/
   accounts.ts         comptes connectés : liste, enregistrement (chiffré), tokens renouvelés
   publish.ts          publishVideo : publication + suivi + enregistrement des statuts
   crypto.ts           chiffrement des tokens (AES-256-GCM)
-  image-library.ts    bibliothèque d'images : liste, ajout sans doublon, lecture, retrait
+  image-library.ts    bibliothèque (photos, clips, GIF) : liste, ajout sans doublon, lecture, retrait
   oauth.ts            adresse de retour OAuth, cookie state
   tiktok-options.ts   options TikTok (visibilité, interactions, déclaration) + validation, partagé
 drizzle/              migrations SQL générées (ne pas modifier à la main)
@@ -226,6 +226,9 @@ Objectif : l'appli la plus simple possible au pouce, sans rien de parasite. Styl
       renvoyé) ; « Gérer » pour en retirer. Migration 0009 : reprise des photos des anciennes
       vidéos ; leurs doublons sont fusionnés à l'ouverture (empreinte calculée à la volée).
       Supprimer une vidéo garde sa photo si elle est en bibliothèque.
+      Clips et GIF aussi (colonne images.kind : image / video / gif ; sans empreinte, ajoutés au
+      rendu par storeClip ; migration 0011 pour les anciens) : réutilisés par leur URL de stockage
+      (dimensions et durée relues par le navigateur), donc sans nouvel envoi.
 - [x] Refonte de l'interface selon les règles « Design » (barre d'onglets en bas, blocs, action
       principale collée en bas de « Créer », options repliées).
 - [ ] Étape 4 : tableau de bord des vues (liste, totaux, courbes, Vercel Cron quotidien,

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import ffmpegPath from "ffmpeg-static";
 import { DbNotConfiguredError, getDb, videos } from "@/lib/db";
 import { listMusic, MAX_UPLOADED_MUSIC_BYTES, resolveMusic } from "@/lib/music";
-import { readLibraryImage, storeImage } from "@/lib/image-library";
+import { readLibraryImage, storeClip, storeImage } from "@/lib/image-library";
 import { readSourceImage } from "@/lib/source-image";
 import {
   downloadStoredFile,
@@ -108,6 +108,9 @@ export async function POST(request: Request) {
       const overlayPng = await renderFrame(null, text, template.settings, { overlayOnly: true, author });
       ({ mp4, cover } = await renderClip({ clipPath, clip, overlayPng, settings: template.settings, music, start, duration }));
     }
+
+    // Clip ou GIF : gardé en bibliothèque pour être réutilisé.
+    if (!source) await storeClip(clipUrl);
 
     const [video, coverFile] = await Promise.all([
       saveFile(`videos/${id}.mp4`, mp4, "video/mp4"),

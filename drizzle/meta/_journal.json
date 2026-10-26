@@ -71,6 +71,20 @@
       "when": 1793026372422,
       "tag": "0009_image_library_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793027248966,
+      "tag": "0010_library_clips",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793027249914,
+      "tag": "0011_library_clips_backfill",
+      "breakpoints": true
     }
   ]
 }

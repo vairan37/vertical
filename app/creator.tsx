@@ -123,6 +123,28 @@ function clipFrame(file: File): Promise<ClipMeta> {
   });
 }
 
+/** Dimensions et durée d'un clip ou d'un GIF déjà dans le stockage (bibliothèque). */
+function remoteClipMeta(url: string, kind: "video" | "gif"): Promise<{ width: number; height: number; duration: number }> {
+  return new Promise((resolve, reject) => {
+    if (kind === "gif") {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, duration: 0 });
+      img.onerror = () => reject(new Error("Ce GIF n'a pas pu être relu."));
+      img.src = url;
+      return;
+    }
+    const video = document.createElement("video");
+    video.muted = true;
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      resolve({ width: video.videoWidth, height: video.videoHeight, duration: video.duration || 0 });
+      video.removeAttribute("src");
+    };
+    video.onerror = () => reject(new Error("Ce clip n'a pas pu être relu sur cet appareil."));
+    video.src = url;
+  });
+}
+
 /** Durée des fondus simulés dans l'aperçu, en secondes (comme FADES.videoIn/Out du rendu). */
 const FADE = 0.4;
 
@@ -291,7 +313,7 @@ export default function Creator({
 
   // Libère les URL locales quand elles changent.
   const clipLocalUrl = clip?.localUrl;
-  useEffect(() => () => { if (clipLocalUrl) URL.revokeObjectURL(clipLocalUrl); }, [clipLocalUrl]);
+  useEffect(() => () => { if (clipLocalUrl?.startsWith("blob:")) URL.revokeObjectURL(clipLocalUrl); }, [clipLocalUrl]);
   useEffect(() => () => { if (musicFileUrl) URL.revokeObjectURL(musicFileUrl); }, [musicFileUrl]);
 
   const audioSrc = musicFileUrl ?? (music ? `/music/${encodeURIComponent(music)}` : undefined);
@@ -393,15 +415,38 @@ export default function Creator({
     }
   }
 
-  /** Image choisie dans la bibliothèque : remplace la photo ou le clip. */
-  function onLibraryImage(picked: LibraryImage) {
+  /** Média choisi dans la bibliothèque : remplace la photo ou le clip (rien n'est renvoyé). */
+  async function onLibraryImage(picked: LibraryImage) {
     uploadAbort.current?.abort();
     setError(null);
-    setClip(null);
-    setImage(null);
-    setPreviewImage(null);
-    setLibraryImage(picked);
     setLibraryOpen(false);
+    if (picked.kind === "image") {
+      setClip(null);
+      setImage(null);
+      setPreviewImage(null);
+      setLibraryImage(picked);
+      return;
+    }
+    try {
+      const meta = await remoteClipMeta(picked.url, picked.kind);
+      setImage(null);
+      setPreviewImage(null);
+      setLibraryImage(null);
+      setClip({
+        name: "Clip de la bibliothèque",
+        kind: picked.kind,
+        // Le fichier est déjà dans le stockage : l'aperçu le lit directement.
+        localUrl: picked.url,
+        width: meta.width,
+        height: meta.height,
+        duration: meta.duration,
+        progress: 100,
+        url: picked.url,
+        error: null,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ce clip n'a pas pu être relu.");
+    }
   }
 
   function onMusicFile(file: File | undefined) {
