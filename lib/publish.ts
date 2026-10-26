@@ -3,6 +3,7 @@ import { getTokens } from "./accounts";
 import { getDb, publications, videos } from "./db";
 import type { Platform } from "./db";
 import { getProvider, SocialError, type PublishState } from "./social";
+import { parseTikTokOptions, tiktokOptionsError } from "./tiktok-options";
 import type { Publication } from "./videos";
 
 /** Instagram traite un Reel en 30 s à quelques minutes : on suit pendant 4 min au plus (route limitée à 300 s). */
@@ -33,9 +34,10 @@ async function save(videoId: string, platform: Platform, values: Partial<typeof 
 
 /**
  * Publie une vidéo sur une plateforme, ou reprend une publication en cours (« Vérifier »).
+ * Légende et options TikTok : celles enregistrées sur la vidéo (videos.caption, tiktok_options).
  * Tout est enregistré en base : un échec garde sa raison et peut être relancé.
  */
-export async function publishVideo(videoId: string, platform: Platform, caption: string): Promise<Publication> {
+export async function publishVideo(videoId: string, platform: Platform): Promise<Publication> {
   const db = getDb();
   const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
   if (!video) throw new SocialError("Vidéo introuvable.");
@@ -51,12 +53,24 @@ export async function publishVideo(videoId: string, platform: Platform, caption:
 
   const provider = getProvider(platform);
   let externalId = existing?.status === "processing" ? existing.externalId : null;
+  // Information à garder avec le statut (ex. : repli sur le brouillon TikTok).
+  let note = existing?.status === "processing" ? existing.error : null;
   try {
     const tokens = await getTokens(platform);
     if (!externalId) {
+      const tiktok = platform === "tiktok" ? parseTikTokOptions(video.tiktokOptions) : null;
+      if (platform === "tiktok" && tiktok) {
+        const invalid = tiktokOptionsError(tiktok);
+        if (invalid) throw new SocialError(invalid);
+      }
       await save(videoId, platform, { status: "processing", error: null, externalId: null, url: null });
-      externalId = await provider.start({ videoUrl: video.videoUrl, coverUrl: video.coverUrl, caption }, tokens);
-      await save(videoId, platform, { status: "processing", externalId });
+      const started = await provider.start(
+        { videoUrl: video.videoUrl, coverUrl: video.coverUrl, caption: video.caption ?? "", duration: video.duration, tiktok },
+        tokens,
+      );
+      externalId = started.externalId;
+      note = started.note ?? null;
+      await save(videoId, platform, { status: "processing", externalId, error: note });
     }
 
     const deadline = Date.now() + POLL_FOR_MS;
@@ -79,7 +93,7 @@ export async function publishVideo(videoId: string, platform: Platform, caption:
       // Identifiant effacé : « Réessayer » relance un envoi complet.
       return save(videoId, platform, { status: "failed", externalId: null, error: result.error });
     }
-    return save(videoId, platform, { status: "processing", externalId: result.externalId ?? externalId, error: null });
+    return save(videoId, platform, { status: "processing", externalId: result.externalId ?? externalId, error: note });
   } catch (error) {
     // Envoi déjà accepté par le réseau : on garde son identifiant, « Vérifier » reprendra le suivi
     // (relancer un envoi complet risquerait un doublon).

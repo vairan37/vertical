@@ -31,8 +31,20 @@ export function simulation(platform: Platform): SocialProvider {
       return null;
     },
     async start(input) {
-      log("publierait", { ...input, mode: platform === "tiktok" ? "brouillon (inbox)" : "Reel" });
-      return `sim_${crypto.randomUUID()}`;
+      log("publierait", { ...input, mode: platform === "tiktok" ? "publication directe" : "Reel" });
+      return { externalId: `sim_${crypto.randomUUID()}` };
+    },
+    async creatorInfo() {
+      return {
+        nickname: `Compte simulé ${LABEL[platform]}`,
+        username: null,
+        avatarUrl: null,
+        privacyOptions: ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"],
+        commentDisabled: false,
+        duetDisabled: false,
+        stitchDisabled: false,
+        maxDurationSec: 600,
+      };
     },
     async check(externalId) {
       log("suivi", { externalId });

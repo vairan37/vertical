@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Platform } from "@/lib/db";
+import { EMPTY_TIKTOK_OPTIONS, tiktokOptionsError, type CreatorInfo, type TikTokOptions } from "@/lib/tiktok-options";
 import type { Publication } from "@/lib/videos";
+import TikTokFields from "../tiktok-fields";
 import { cancelPublication, setManualPublication } from "./actions";
 
 export type PlatformInfo = {
@@ -25,28 +27,46 @@ const STATUS: Record<Publication["status"], { text: string; className: string }>
 export default function PublishSection({
   videoId,
   defaultCaption,
+  defaultTiktok,
+  duration,
   platforms,
   dryRun,
 }: {
   videoId: string;
   defaultCaption: string;
+  /** Options TikTok choisies à la création (ou null). */
+  defaultTiktok: TikTokOptions | null;
+  duration: number;
   platforms: PlatformInfo[];
   dryRun: boolean;
 }) {
   const [caption, setCaption] = useState(defaultCaption);
+  const [tiktok, setTiktok] = useState<TikTokOptions>(defaultTiktok ?? EMPTY_TIKTOK_OPTIONS);
+  const [creator, setCreator] = useState<CreatorInfo | null>(null);
   const [busy, setBusy] = useState<Platform | null>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const needsCaption = platforms.some((p) => p.id === "instagram" && p.publication?.status !== "published");
+  const canStart = (p: PlatformInfo) =>
+    p.connected && p.publication?.status !== "published" && p.publication?.status !== "processing";
+  const needsCaption = platforms.some(canStart);
+  const tiktokRow = platforms.find((p) => p.id === "tiktok");
 
-  async function publish(platform: Platform) {
+  /** `start` : nouvel envoi (légende et options enregistrées) ; sinon simple suivi (« Vérifier »). */
+  async function publish(platform: Platform, start: boolean) {
+    if (start && platform === "tiktok") {
+      if (!creator) return setError("Compte TikTok illisible : réessaie de le charger.");
+      const invalid = tiktokOptionsError(tiktok, creator, duration);
+      if (invalid) return setError(invalid);
+    }
     setBusy(platform);
     setError(null);
     try {
       const res = await fetch("/api/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId, platform, caption }),
+        body: JSON.stringify(
+          start ? { videoId, platform, caption, tiktok: platform === "tiktok" ? tiktok : undefined } : { videoId, platform },
+        ),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) setError(data.error ?? `Erreur du serveur (${res.status}).`);
@@ -78,7 +98,7 @@ export default function PublishSection({
       )}
       {needsCaption && (
         <label className="flex flex-col gap-1">
-          <span className="text-sm text-zinc-400">Légende Instagram (sur TikTok, elle s&apos;écrit dans l&apos;appli)</span>
+          <span className="text-sm text-zinc-400">Légende et hashtags</span>
           <textarea
             value={caption}
             maxLength={2200}
@@ -88,6 +108,8 @@ export default function PublishSection({
           />
         </label>
       )}
+
+      {tiktokRow && canStart(tiktokRow) && <TikTokFields value={tiktok} onChange={setTiktok} onCreator={setCreator} />}
 
       {platforms.map(({ id, label, publication, connected }) => {
         const status = publication ? STATUS[publication.status] : { text: "Non publiée", className: "text-zinc-500" };
@@ -100,7 +122,7 @@ export default function PublishSection({
               <span className="w-20 shrink-0 font-medium">{label}</span>
               <span className={`flex-1 text-sm ${status.className}`}>
                 {isBusy ? (
-                  <span className="text-sky-300">{id === "instagram" ? "Publication… (jusqu'à 4 min)" : "Envoi…"}</span>
+                  <span className="text-sky-300">{id === "instagram" ? "Publication… (jusqu'à 4 min)" : "Envoi à TikTok…"}</span>
                 ) : publication?.status === "published" && publication.url ? (
                   <a href={publication.url} target="_blank" rel="noreferrer" className="underline">{status.text}</a>
                 ) : (
@@ -110,9 +132,11 @@ export default function PublishSection({
               </span>
             </div>
 
-            {publication?.status === "processing" && id === "tiktok" && publication.externalId && !publication.error && (
+            {publication?.status === "processing" && !publication.error && (
               <p className="text-sm text-zinc-300">
-                Brouillon envoyé dans ton appli TikTok : ouvre la notification pour publier, puis touche « Vérifier ».
+                {id === "tiktok"
+                  ? "TikTok traite la vidéo (quelques minutes) : touche « Vérifier » pour voir où elle en est."
+                  : "Instagram traite le Reel : touche « Vérifier » dans un instant."}
               </p>
             )}
             {publication?.error && (
@@ -122,8 +146,8 @@ export default function PublishSection({
             <div className="flex flex-wrap gap-2">
               {publication?.status !== "published" && publication?.status !== "processing" && (
                 connected ? (
-                  <button type="button" disabled={busy !== null} onClick={() => publish(id)} className={`${small} bg-white font-semibold text-black`}>
-                    {publication?.status === "failed" ? "Réessayer" : id === "tiktok" ? "Envoyer en brouillon" : "Publier"}
+                  <button type="button" disabled={busy !== null} onClick={() => publish(id, true)} className={`${small} bg-white font-semibold text-black`}>
+                    {publication?.status === "failed" ? "Réessayer" : "Publier"}
                   </button>
                 ) : (
                   <a href="/publiees" className={`${small} flex items-center bg-zinc-800`}>Connecter le compte</a>
@@ -131,7 +155,7 @@ export default function PublishSection({
               )}
               {publication?.status === "processing" && (
                 <>
-                  <button type="button" disabled={busy !== null} onClick={() => publish(id)} className={`${small} bg-white font-semibold text-black`}>
+                  <button type="button" disabled={busy !== null} onClick={() => publish(id, false)} className={`${small} bg-white font-semibold text-black`}>
                     Vérifier
                   </button>
                   <button type="button" disabled={busy !== null} onClick={() => run(() => cancelPublication(videoId, id))} className={`${small} bg-zinc-800`}>

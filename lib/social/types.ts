@@ -1,4 +1,5 @@
 import type { Platform } from "../db";
+import type { CreatorInfo, TikTokOptions } from "../tiktok-options";
 
 /** Tokens d'un compte (en clair, uniquement en mémoire : chiffrés avant la base). */
 export type Tokens = {
@@ -15,8 +16,19 @@ export type PublishInput = {
   videoUrl: string;
   /** Couverture JPEG publique, si elle existe. */
   coverUrl: string | null;
-  /** Légende (Instagram ; TikTok en brouillon : la légende s'écrit dans l'appli). */
+  /** Légende avec hashtags (Instagram, et TikTok en publication directe). */
   caption: string;
+  /** Durée de la vidéo, en secondes. */
+  duration: number;
+  /** Options TikTok (visibilité, interactions, déclaration commerciale). */
+  tiktok?: TikTokOptions | null;
+};
+
+export type StartResult = {
+  /** Identifiant à suivre (conteneur Instagram, publish_id TikTok). */
+  externalId: string;
+  /** Information à afficher avec le statut (ex. : repli sur le brouillon TikTok). */
+  note?: string;
 };
 
 export type PublishState =
@@ -41,14 +53,22 @@ export interface SocialProvider {
   exchangeCode(code: string, redirectUri: string): Promise<Tokens>;
   /** Renouvelle les tokens si besoin ; null si rien à faire. `savedAt` : date du dernier enregistrement. */
   refresh(tokens: Tokens, savedAt: Date): Promise<Tokens | null>;
-  /** Lance la publication ; renvoie l'identifiant à suivre (conteneur Instagram, publish_id TikTok). */
-  start(input: PublishInput, tokens: Tokens): Promise<string>;
+  /** Lance la publication. */
+  start(input: PublishInput, tokens: Tokens): Promise<StartResult>;
+  /** Infos du compte pour l'écran de publication (TikTok uniquement). */
+  creatorInfo?(tokens: Tokens): Promise<CreatorInfo>;
   /** Où en est la publication. Pour Instagram, publie le conteneur quand il est prêt. */
   check(externalId: string, tokens: Tokens): Promise<PublishState>;
 }
 
-/** Erreur affichable telle quelle à Victor (en français). */
-export class SocialError extends Error {}
+/** Erreur affichable telle quelle à Victor (en français). `code` : code d'erreur de l'API. */
+export class SocialError extends Error {
+  code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.code = code;
+  }
+}
 
 /** Lit une réponse JSON sans planter si le corps n'en est pas. */
 export async function readJson(res: Response): Promise<Record<string, unknown>> {

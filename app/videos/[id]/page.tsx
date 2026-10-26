@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { listAccounts } from "@/lib/accounts";
 import { isDryRun } from "@/lib/social";
+import { parseTikTokOptions } from "@/lib/tiktok-options";
 import { displayName, getVideo, PLATFORMS } from "@/lib/videos";
 import PausingVideo from "../../pausing-video";
 import PublishSection from "../publish-section";
@@ -57,7 +58,9 @@ async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["para
         )}
         <PublishSection
           videoId={video.id}
-          defaultCaption={[video.text, video.author ? `- ${video.author}` : ""].filter(Boolean).join("\n")}
+          defaultCaption={video.caption ?? [video.text, video.author ? `- ${video.author}` : ""].filter(Boolean).join("\n")}
+          defaultTiktok={parseTikTokOptions(video.tiktokOptions)}
+          duration={video.duration}
           dryRun={isDryRun()}
           platforms={PLATFORMS.map((p) => ({
             ...p,

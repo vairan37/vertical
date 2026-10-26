@@ -59,6 +59,9 @@ app/
   api/files/[name]/   sert le stockage local (dev sans Vercel Blob)
   api/youtube/        search (GET ?q=) et audio (POST {id,start,length} -> MP3)
   youtube-picker.tsx  recherche YouTube dans la section Musique du formulaire
+  tiktok-fields.tsx   réglages d'une publication TikTok (conformes aux règles d'audit TikTok)
+  api/publish/        POST : publie une vidéo sur un réseau (ou reprend le suivi)
+  api/social/tiktok/creator/ GET : infos du compte TikTok pour l'écran de publication
 lib/
   template.tsx        rendu de la frame (ImageResponse) à partir des réglages d'une template
   template-settings.ts réglages d'une template (positions, tailles, police, couleurs), polices,
@@ -81,6 +84,7 @@ lib/
   publish.ts          publishVideo : publication + suivi + enregistrement des statuts
   crypto.ts           chiffrement des tokens (AES-256-GCM)
   oauth.ts            adresse de retour OAuth, cookie state
+  tiktok-options.ts   options TikTok (visibilité, interactions, déclaration) + validation, partagé
 drizzle/              migrations SQL générées (ne pas modifier à la main)
 scripts/migrate.mjs   applique les migrations (ignoré si DATABASE_URL absente)
 scripts/fetch-yt-dlp.mjs télécharge bin/yt-dlp au build (version figée + SHA-256 vérifié ; bin/ ignoré par git)
@@ -121,8 +125,14 @@ public/music/         musiques .mp3 incorporées dans les vidéos
   renouvelable après 24 h. Reel = conteneur (`media_type=REELS`, `video_url` publique, `cover_url`)
   -> polling `status_code` jusqu'à `FINISHED` -> `media_publish`. 100 publications / 24 h. Specs Reel :
   MP4 faststart, H.264, AAC ≤ 48 kHz, 3 s à 15 min. En mode dev Meta, seuls les testeurs.
-- TikTok : Content Posting API, mode brouillon (`/v2/post/publish/inbox/video/init/`, scope
-  `video.upload` + `user.info.basic`). Envoi en FILE_UPLOAD (PULL_FROM_URL exige un domaine vérifié :
+- TikTok : Content Posting API, publication directe (`/v2/post/publish/video/init/`, scope
+  `video.publish`) avec légende et options, repli sur le brouillon (`/inbox/video/init/`, scope
+  `video.upload`) si TikTok répond `unaudited_client_can_only_post_to_private_accounts` (app non
+  auditée + compte public). Non audité : tout est privé (doc direct-post). L'écran de publication
+  suit les content-sharing-guidelines (vérifiées à l'audit, voir app/tiktok-fields.tsx et
+  lib/tiktok-options.ts) : creator_info relu à chaque affichage et avant l'envoi, pseudo affiché,
+  visibilité sans défaut, interactions décochées par défaut, déclaration commerciale, accord musique.
+  Envoi en FILE_UPLOAD (PULL_FROM_URL exige un domaine vérifié :
   impossible avec Vercel Blob). Token 24 h + refresh 365 jours. 5 brouillons en attente / 24 h ;
   statut SEND_TO_USER_INBOX tant que Victor n'a pas publié depuis l'appli. Vues via Display API
   (`video.list`). Pas de sons TikTok via l'API : musique incorporée dans la vidéo.
@@ -184,6 +194,11 @@ public/music/         musiques .mp3 incorporées dans les vidéos
       app/videos/publish-section.tsx. Prod : DRY_RUN=false. TikTok connecté via une app en Sandbox
       (clé et secret du Sandbox ; Content Posting API + scopes user.info.basic, video.upload,
       video.list ; compte de Victor en Target user). App Instagram pas encore créée.
+- [x] Publication automatique à la création : légende + hashtags (colonne videos.caption) et
+      options TikTok (videos.tiktok_options) saisies dans « Créer » ; cases « Publier sur … dès la
+      création » (comptes connectés) ; après le rendu, le navigateur appelle /api/publish pour
+      chaque réseau coché. /api/publish lit légende et options sur la vidéo (et les met à jour si
+      fournies). Scope TikTok video.publish à ajouter dans l'app (Direct Post activé).
 - [ ] Étape 4 : tableau de bord des vues (liste, totaux, courbes, Vercel Cron quotidien,
       bouton "Actualiser", import des anciennes vidéos)
 - [ ] Étape 4 bis : file de publication automatique (demande de Victor). Les vidéos sont ajoutées

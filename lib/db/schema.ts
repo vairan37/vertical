@@ -12,6 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { TemplateSettings } from "../template-settings";
+import type { TikTokOptions } from "../tiktok-options";
 
 export const platform = pgEnum("platform", ["instagram", "tiktok"]);
 export const publicationStatus = pgEnum("publication_status", [
@@ -42,6 +43,10 @@ export const videos = pgTable("videos", {
   text: text("text").notNull().default(""),
   /** Auteur affiché sous le texte (ligne « - Nom »), ex. le rappeur. */
   author: text("author"),
+  /** Légende des publications (hashtags compris), saisie à la création. */
+  caption: text("caption"),
+  /** Options de publication TikTok choisies (visibilité, interactions, déclaration commerciale). */
+  tiktokOptions: jsonb("tiktok_options").$type<TikTokOptions>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   videoUrl: text("video_url").notNull(),
   downloadUrl: text("download_url").notNull(),

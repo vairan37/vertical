@@ -113,7 +113,7 @@ export const instagram: SocialProvider = {
     };
     if (input.coverUrl) params.cover_url = input.coverUrl;
     const data = await graph(`/${tokens.accountId}/media`, params, "création du Reel", "POST");
-    return String(data.id);
+    return { externalId: String(data.id) };
   },
 
   async check(containerId, tokens) {

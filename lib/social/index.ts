@@ -5,7 +5,7 @@ import { tiktok } from "./tiktok";
 import type { SocialProvider } from "./types";
 
 export { SocialError } from "./types";
-export type { PublishInput, PublishState, SocialProvider, Tokens } from "./types";
+export type { PublishInput, PublishState, SocialProvider, StartResult, Tokens } from "./types";
 
 /** Simulation par défaut : rien n'est publié tant que DRY_RUN ne vaut pas exactement « false ». */
 export function isDryRun() {

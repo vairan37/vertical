@@ -1,17 +1,24 @@
+import type { CreatorInfo, TikTokOptions } from "../tiktok-options";
 import { readJson, SocialError, type SocialProvider, type Tokens } from "./types";
 
 /*
- * TikTok Content Posting API, en brouillon (« upload to inbox ») : la vidéo arrive dans l'appli
- * TikTok, Victor touche la notification pour la publier. Docs (developers.tiktok.com) :
- * login-kit-web, oauth-user-access-token-management, content-posting-api-reference-upload-video,
+ * TikTok Content Posting API. Docs (developers.tiktok.com) : login-kit-web,
+ * oauth-user-access-token-management, content-posting-api-reference-direct-post,
+ * content-posting-api-reference-query-creator-info, content-posting-api-reference-upload-video,
  * content-posting-api-media-transfer-guide, content-posting-api-reference-get-video-status.
+ *
+ * - Publication directe (video.publish) avec légende, visibilité et options : le mode normal.
+ *   Tant que l'app n'est pas auditée par TikTok, tout est forcé en privé, et TikTok refuse même
+ *   la publication vers un compte public (unaudited_client_can_only_post_to_private_accounts) :
+ *   on se replie alors sur le brouillon (video.upload), que Victor finit dans l'appli.
+ * - Sans options TikTok (anciennes vidéos), envoi en brouillon.
  *
  * Envoi en FILE_UPLOAD (le serveur envoie le fichier) : PULL_FROM_URL exige un domaine vérifié
  * chez TikTok, impossible pour les URL Vercel Blob.
  */
 
 const API = "https://open.tiktokapis.com";
-const SCOPES = ["user.info.basic", "video.upload"];
+const SCOPES = ["user.info.basic", "video.publish", "video.upload"];
 /** Morceaux de 5 à 64 Mo ; sous 64 Mo, un seul morceau (le cas de nos vidéos). */
 const CHUNK = 32 * 1024 * 1024;
 
@@ -27,7 +34,11 @@ function credentials() {
 
 const MESSAGES: Record<string, string> = {
   access_token_invalid: "Connexion TikTok expirée ou révoquée : reconnecte le compte (page Publiées).",
-  scope_not_authorized: "Permission TikTok manquante : reconnecte le compte en acceptant l'envoi de vidéos.",
+  scope_not_authorized:
+    "Permission TikTok manquante : vérifie que video.publish et video.upload sont dans l'app TikTok, puis reconnecte le compte (page Publiées).",
+  spam_risk_too_many_posts: "Nombre maximum de publications TikTok du jour atteint : réessaie demain.",
+  reached_active_user_cap: "Quota quotidien de l'app TikTok atteint : réessaie demain.",
+  privacy_level_option_mismatch: "Cette visibilité n'est pas autorisée par TikTok pour ton compte : choisis-en une autre.",
   rate_limit_exceeded: "TikTok limite le nombre de requêtes : réessaie dans une minute.",
   spam_risk_too_many_pending_share: "Trop de brouillons TikTok en attente (5 par 24 h) : publie ou supprime ceux de ton appli, puis réessaie.",
   spam_risk_user_banned_from_posting: "TikTok bloque temporairement les publications de ce compte.",
@@ -37,7 +48,7 @@ function tiktokError(data: Record<string, unknown>, action: string): SocialError
   const error = (data.error ?? {}) as { code?: string; message?: string };
   console.error(`TikTok (${action}) :`, JSON.stringify(data).slice(0, 1000));
   const known = error.code ? MESSAGES[error.code] : undefined;
-  return new SocialError(known ?? `TikTok a refusé (${action}) : ${error.message || error.code || "erreur inconnue"}.`);
+  return new SocialError(known ?? `TikTok a refusé (${action}) : ${error.message || error.code || "erreur inconnue"}.`, error.code);
 }
 
 /** Appel JSON authentifié ; toute réponse dont error.code n'est pas « ok » est une erreur. */
@@ -76,6 +87,58 @@ async function tokenRequest(params: Record<string, string>, action: string): Pro
   };
 }
 
+const DRAFT_NOTE = "Brouillon envoyé dans ton appli TikTok : ouvre la notification pour publier, puis touche « Vérifier ».";
+
+/** post_info de la publication directe : les interactions coupées dans le compte restent coupées. */
+function postInfo(caption: string, o: TikTokOptions, creator: CreatorInfo) {
+  return {
+    title: caption.slice(0, 2200),
+    privacy_level: o.privacyLevel,
+    disable_comment: !o.allowComment || creator.commentDisabled,
+    disable_duet: !o.allowDuet || creator.duetDisabled,
+    disable_stitch: !o.allowStitch || creator.stitchDisabled,
+    // 1 s : après le fondu d'entrée (la première image est noire).
+    video_cover_timestamp_ms: 1000,
+    brand_content_toggle: o.disclose && o.brandedContent,
+    brand_organic_toggle: o.disclose && o.yourBrand,
+  };
+}
+
+/** Initialise l'envoi (publication directe ou brouillon), envoie le fichier, renvoie le publish_id. */
+async function upload(path: string, extra: Record<string, unknown>, video: Buffer<ArrayBuffer>, tokens: Tokens): Promise<string> {
+  const size = video.length;
+  const chunkSize = size <= 64 * 1024 * 1024 ? size : CHUNK;
+  const chunks = Math.max(1, Math.floor(size / chunkSize));
+  const init = await call(
+    path,
+    tokens.accessToken,
+    { ...extra, source_info: { source: "FILE_UPLOAD", video_size: size, chunk_size: chunkSize, total_chunk_count: chunks } },
+    "envoi",
+  );
+  const uploadUrl = String(init.upload_url ?? "");
+  if (!uploadUrl) throw new SocialError("TikTok n'a pas fourni d'adresse d'envoi.");
+
+  for (let i = 0; i < chunks; i++) {
+    const first = i * chunkSize;
+    // Le dernier morceau absorbe le reste (jusqu'à 128 Mo).
+    const last = i === chunks - 1 ? size - 1 : first + chunkSize - 1;
+    const put = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "video/mp4",
+        "Content-Length": String(last - first + 1),
+        "Content-Range": `bytes ${first}-${last}/${size}`,
+      },
+      body: video.subarray(first, last + 1),
+    });
+    if (put.status !== 201 && put.status !== 206) {
+      console.error("TikTok (envoi du fichier) :", put.status, (await put.text()).slice(0, 500));
+      throw new SocialError(`L'envoi du fichier à TikTok a échoué (code ${put.status}).`);
+    }
+  }
+  return String(init.publish_id);
+}
+
 export const tiktok: SocialProvider = {
   platform: "tiktok",
 
@@ -108,42 +171,49 @@ export const tiktok: SocialProvider = {
     return { ...fresh, accountName: tokens.accountName };
   },
 
+  async creatorInfo(tokens) {
+    const data = await call("/v2/post/publish/creator_info/query/", tokens.accessToken, {}, "infos du compte");
+    return {
+      nickname: String(data.creator_nickname ?? tokens.accountName ?? ""),
+      username: typeof data.creator_username === "string" ? data.creator_username : null,
+      avatarUrl: typeof data.creator_avatar_url === "string" ? data.creator_avatar_url : null,
+      privacyOptions: Array.isArray(data.privacy_level_options) ? data.privacy_level_options.map(String) : [],
+      commentDisabled: data.comment_disabled === true,
+      duetDisabled: data.duet_disabled === true,
+      stitchDisabled: data.stitch_disabled === true,
+      maxDurationSec: Number(data.max_video_post_duration_sec ?? 600),
+    } satisfies CreatorInfo;
+  },
+
   async start(input, tokens) {
     const res = await fetch(input.videoUrl, { cache: "no-store" });
     if (!res.ok) throw new SocialError("Impossible de relire la vidéo dans le stockage.");
     const video = Buffer.from(await res.arrayBuffer());
-    const size = video.length;
-    const chunkSize = size <= 64 * 1024 * 1024 ? size : CHUNK;
-    const chunks = Math.max(1, Math.floor(size / chunkSize));
 
-    const init = await call(
-      "/v2/post/publish/inbox/video/init/",
-      tokens.accessToken,
-      { source_info: { source: "FILE_UPLOAD", video_size: size, chunk_size: chunkSize, total_chunk_count: chunks } },
-      "envoi",
-    );
-    const uploadUrl = String(init.upload_url ?? "");
-    if (!uploadUrl) throw new SocialError("TikTok n'a pas fourni d'adresse d'envoi.");
-
-    for (let i = 0; i < chunks; i++) {
-      const first = i * chunkSize;
-      // Le dernier morceau absorbe le reste (jusqu'à 128 Mo).
-      const last = i === chunks - 1 ? size - 1 : first + chunkSize - 1;
-      const put = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "video/mp4",
-          "Content-Length": String(last - first + 1),
-          "Content-Range": `bytes ${first}-${last}/${size}`,
-        },
-        body: video.subarray(first, last + 1),
-      });
-      if (put.status !== 201 && put.status !== 206) {
-        console.error("TikTok (envoi du fichier) :", put.status, (await put.text()).slice(0, 500));
-        throw new SocialError(`L'envoi du fichier à TikTok a échoué (code ${put.status}).`);
-      }
+    if (!input.tiktok) {
+      return { externalId: await upload("/v2/post/publish/inbox/video/init/", {}, video, tokens), note: DRAFT_NOTE };
     }
-    return String(init.publish_id);
+    // Infos du compte relues juste avant de publier (exigence TikTok) : visibilité et durée permises.
+    const creator = await tiktok.creatorInfo!(tokens);
+    if (!creator.privacyOptions.includes(input.tiktok.privacyLevel)) {
+      throw new SocialError("Cette visibilité n'est pas disponible pour ton compte TikTok : choisis-en une autre.");
+    }
+    if (input.duration > creator.maxDurationSec) {
+      throw new SocialError(`TikTok accepte ${creator.maxDurationSec} s maximum pour ton compte.`);
+    }
+    try {
+      const externalId = await upload("/v2/post/publish/video/init/", { post_info: postInfo(input.caption, input.tiktok, creator) }, video, tokens);
+      return { externalId };
+    } catch (error) {
+      if (!(error instanceof SocialError) || error.code !== "unaudited_client_can_only_post_to_private_accounts") throw error;
+      const externalId = await upload("/v2/post/publish/inbox/video/init/", {}, video, tokens);
+      return {
+        externalId,
+        note:
+          "App TikTok pas encore auditée : TikTok refuse la publication directe sur un compte public. " +
+          "Brouillon envoyé dans ton appli TikTok à la place : ouvre la notification, colle la légende, publie, puis touche « Vérifier ».",
+      };
+    }
   },
 
   async check(publishId, tokens) {

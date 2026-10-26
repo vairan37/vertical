@@ -1,5 +1,6 @@
 import { denyUnauthenticated } from "@/lib/auth";
 import { isDryRun } from "@/lib/social";
+import { parseTikTokOptionsJson } from "@/lib/tiktok-options";
 import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -113,6 +114,8 @@ export async function POST(request: Request) {
       title,
       text,
       author: author || null,
+      caption: String(form.get("caption") ?? "").slice(0, 2200) || null,
+      tiktokOptions: parseTikTokOptionsJson(String(form.get("tiktokOptions") ?? "")),
       videoUrl: video.url,
       downloadUrl: video.downloadUrl,
       // Pour un clip, l'« image source » est la couverture (la colonne est obligatoire).

@@ -127,8 +127,10 @@ Pour ajouter une police : dépose un fichier `.ttf` **statique** (pas de police 
 
 ## Publication sur Instagram et TikTok
 
-Sur la page d'une vidéo (onglet Vidéos) : légende Instagram, puis **Publier** (Instagram) ou
-**Envoyer en brouillon** (TikTok). Un échec affiche sa raison et propose **Réessayer** ; une
+Le plus simple : dans **Créer**, remplis la **légende et les hashtags**, coche **Publier sur
+Instagram / TikTok dès la création** (et pour TikTok, choisis la visibilité et les options),
+puis **Créer et publier** : la vidéo est générée puis publiée toute seule. Sur la page d'une vidéo
+(onglet Vidéos), on peut aussi publier ou relancer : légende, puis **Publier**. Un échec affiche sa raison et propose **Réessayer** ; une
 publication en cours propose **Vérifier** et **Abandonner**. Les comptes se connectent dans la
 page **Publiées**.
 
@@ -169,9 +171,16 @@ fois par jour). Après 60 jours sans publication, il faut se reconnecter.
    « target user », et utilise la clé et le secret du Sandbox.
 5. Vercel : `TIKTOK_CLIENT_KEY` et `TIKTOK_CLIENT_SECRET`.
 
-Les vidéos arrivent **en brouillon** dans l'appli TikTok. Touche la notification pour
-publier, puis « Vérifier » sur le site. TikTok limite à **5 brouillons en attente par
-24 h**.
+Publication directe : dans Content Posting API, active **Direct Post**, et ajoute aussi le
+scope `video.publish` (en plus de `video.upload`), puis **Apply changes** et reconnecte TikTok
+sur le site.
+
+**Tant que TikTok n'a pas audité l'app** (App review, avec une vidéo de démonstration), tout ce
+qu'elle publie est **privé**, et TikTok refuse même la publication directe vers un compte
+**public**. Dans ce cas, le site envoie automatiquement la vidéo **en brouillon** : touche la
+notification dans l'appli TikTok, colle la légende, publie, puis « Vérifier » sur le site.
+TikTok limite à **5 brouillons en attente par 24 h**. Après l'audit, la publication est
+directe et publique, sans rien changer au code.
 
 ### 4. Passer en vrai
 

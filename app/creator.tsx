@@ -10,8 +10,10 @@ import {
   VIDEO_WIDTH,
   type TemplateSettings,
 } from "@/lib/template-settings";
+import { EMPTY_TIKTOK_OPTIONS, tiktokOptionsError, type CreatorInfo, type TikTokOptions } from "@/lib/tiktok-options";
 import ExcerptFields, { type Excerpt } from "./excerpt-fields";
 import PausingVideo from "./pausing-video";
+import TikTokFields from "./tiktok-fields";
 import YoutubePicker, { type YoutubeChoice } from "./youtube-picker";
 
 const MAX_IMAGE_SIDE = 2000;
@@ -142,7 +144,21 @@ function boxStyle(box: { left: number; top: number; width: number; height: numbe
   };
 }
 
-export default function Creator({ templates, blobUpload }: { templates: TemplateOption[]; blobUpload: boolean }) {
+type Platform = "instagram" | "tiktok";
+const PLATFORM_LABELS: Record<Platform, string> = { instagram: "Instagram", tiktok: "TikTok" };
+/** Statut affiché pendant la publication automatique qui suit la création. */
+type PublishLine = { state: "running" | "done" | "waiting" | "error"; text: string };
+
+export default function Creator({
+  templates,
+  blobUpload,
+  connected,
+}: {
+  templates: TemplateOption[];
+  blobUpload: boolean;
+  /** Comptes connectés et utilisables, pour proposer la publication automatique. */
+  connected: Record<Platform, boolean>;
+}) {
   const [image, setImage] = useState<Blob | null>(null);
   const [clip, setClip] = useState<Clip | null>(null);
   const uploadAbort = useRef<AbortController | null>(null);
@@ -172,6 +188,12 @@ export default function Creator({ templates, blobUpload }: { templates: Template
   const [audioTotal, setAudioTotal] = useState<number | null>(null);
   // Durée d'une vidéo sans son (seul cas où on la règle directement).
   const [silentDuration, setSilentDuration] = useState(8);
+  // Publication automatique juste après la création.
+  const [caption, setCaption] = useState("");
+  const [publishTo, setPublishTo] = useState<Record<Platform, boolean>>({ instagram: false, tiktok: false });
+  const [tiktokOptions, setTiktokOptions] = useState<TikTokOptions>(EMPTY_TIKTOK_OPTIONS);
+  const [tiktokCreator, setTiktokCreator] = useState<CreatorInfo | null>(null);
+  const [publishLines, setPublishLines] = useState<Partial<Record<Platform, PublishLine>>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [video, setVideo] = useState<{ id: string; url: string; downloadUrl: string } | null>(null);
@@ -482,6 +504,13 @@ export default function Creator({ templates, blobUpload }: { templates: Template
     if (!image && !clip) return setError("Choisis une photo ou une vidéo.");
     if (clip && clip.error) return setError(`Le clip n'a pas été envoyé : ${clip.error} Choisis-le à nouveau.`);
     if (clip && !clip.url) return setError(`Envoi du clip en cours (${clip.progress} %) : attends la fin avant de créer la vidéo.`);
+    if (publishTo.tiktok) {
+      if (!tiktokCreator) return setError("Compte TikTok illisible : réessaie de le charger, ou décoche TikTok.");
+      const invalid = tiktokOptionsError(tiktokOptions, tiktokCreator, duration);
+      if (invalid) return setError(invalid);
+    }
+    const targets = (Object.keys(publishTo) as Platform[]).filter((p) => publishTo[p] && connected[p]);
+    setPublishLines({});
     setElapsed(0);
     setBusy(true);
     setVideo(null);
@@ -495,6 +524,8 @@ export default function Creator({ templates, blobUpload }: { templates: Template
       form.set("text", text);
       form.set("title", title);
       form.set("author", author);
+      form.set("caption", caption);
+      if (publishTo.tiktok) form.set("tiktokOptions", JSON.stringify(tiktokOptions));
       if (templateId) form.set("templateId", templateId);
       form.set("start", String(start));
       form.set("duration", String(duration));
@@ -507,6 +538,8 @@ export default function Creator({ templates, blobUpload }: { templates: Template
       }
       const data = (await res.json()) as { id: string; videoUrl: string; downloadUrl: string };
       setVideo({ id: data.id, url: data.videoUrl, downloadUrl: data.downloadUrl });
+      // Publication automatique (en parallèle) sur les réseaux cochés.
+      for (const platform of targets) void publish(data.id, platform);
       fetch(data.videoUrl)
         .then((r) => (r.ok ? r.blob() : null))
         .then(setVideoBlob)
@@ -518,6 +551,32 @@ export default function Creator({ templates, blobUpload }: { templates: Template
     } finally {
       window.clearTimeout(timeout);
       setBusy(false);
+    }
+  }
+
+  async function publish(videoId: string, platform: Platform) {
+    const line = (l: PublishLine) => setPublishLines((all) => ({ ...all, [platform]: l }));
+    line({
+      state: "running",
+      text: platform === "instagram" ? "Publication… (jusqu'à 4 min)" : "Envoi à TikTok… (quelques minutes)",
+    });
+    try {
+      const res = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId, platform }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        publication?: { status: string; error: string | null; url: string | null };
+      };
+      const pub = data.publication;
+      if (!res.ok || !pub) return line({ state: "error", text: data.error ?? `Erreur du serveur (${res.status}).` });
+      if (pub.status === "published") return line({ state: "done", text: "Publiée ✓" });
+      if (pub.status === "failed") return line({ state: "error", text: pub.error ?? "Échec." });
+      line({ state: "waiting", text: pub.error ?? "En cours : touche « Vérifier » sur la page de la vidéo." });
+    } catch {
+      line({ state: "waiting", text: "Connexion perdue : vérifie le statut sur la page de la vidéo." });
     }
   }
 
@@ -745,10 +804,54 @@ export default function Creator({ templates, blobUpload }: { templates: Template
         />
       </section>
 
+      <section className="flex flex-col gap-3">
+        <h2 className="font-semibold">Publication</h2>
+        <label className="flex flex-col gap-2">
+          <span className="text-sm text-zinc-400">Légende et hashtags (Instagram et TikTok)</span>
+          <textarea
+            rows={3}
+            maxLength={2200}
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            className={input}
+            placeholder="Ex. : Le son du moment 🔥 #rap #son"
+          />
+        </label>
+        {(Object.keys(PLATFORM_LABELS) as Platform[]).map((p) => (
+          <div key={p} className="flex flex-col gap-2">
+            <label className={`flex min-h-11 items-center justify-between gap-3 ${connected[p] ? "" : "opacity-60"}`}>
+              <span>
+                Publier sur {PLATFORM_LABELS[p]} dès la création
+                {!connected[p] && (
+                  <>
+                    {" "}
+                    <Link href="/publiees" className="text-sm text-sky-400 underline">(compte à connecter)</Link>
+                  </>
+                )}
+              </span>
+              <input
+                type="checkbox"
+                checked={publishTo[p] && connected[p]}
+                disabled={!connected[p]}
+                onChange={(e) => setPublishTo((v) => ({ ...v, [p]: e.target.checked }))}
+                className="h-6 w-6"
+              />
+            </label>
+            {p === "tiktok" && publishTo.tiktok && connected.tiktok && (
+              <TikTokFields value={tiktokOptions} onChange={setTiktokOptions} onCreator={setTiktokCreator} />
+            )}
+          </div>
+        ))}
+      </section>
+
       {error && <p ref={errorRef} role="alert" className="rounded-xl bg-red-950 px-4 py-3 text-red-200">{error}</p>}
 
       <button type="button" onClick={create} disabled={busy} className={`${button} bg-white text-black`}>
-        {busy ? `Création en cours… ${elapsed} s` : "Créer la vidéo"}
+        {busy
+          ? `Création en cours… ${elapsed} s`
+          : (publishTo.instagram && connected.instagram) || (publishTo.tiktok && connected.tiktok)
+            ? "Créer et publier"
+            : "Créer la vidéo"}
       </button>
       {busy && (
         <p className="-mt-3 text-center text-sm text-zinc-400">
@@ -759,6 +862,20 @@ export default function Creator({ templates, blobUpload }: { templates: Template
       {video && (
         <section ref={videoRef} className="flex flex-col gap-3">
           <p className="font-semibold text-green-400">Vidéo créée ✓</p>
+          {(Object.keys(publishLines) as Platform[]).map((p) => {
+            const l = publishLines[p]!;
+            const color = { running: "text-sky-300", done: "text-green-400", waiting: "text-amber-200", error: "text-red-300" }[l.state];
+            return (
+              <p key={p} className={`text-sm ${color}`}>
+                <span className="font-semibold">{PLATFORM_LABELS[p]} :</span> {l.text}
+              </p>
+            );
+          })}
+          {Object.keys(publishLines).length > 0 && (
+            <Link href={`/videos/${video.id}`} className="text-sm text-sky-400 underline">
+              Suivre la publication sur la page de la vidéo
+            </Link>
+          )}
           <PausingVideo src={video.url} controls playsInline preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black" />
           <Link href="/videos" className={`${button} bg-white text-center text-black`}>
             Voir dans Mes vidéos
