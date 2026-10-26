@@ -11,6 +11,8 @@ const LINKS = [
   { href: "/templates", label: "Templates" },
 ] as const;
 
+const PUBLIC_PAGES = ["/login", "/conditions", "/confidentialite"];
+
 function isActive(href: string, pathname: string | null) {
   if (!pathname) return false;
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -36,7 +38,8 @@ function NavBar({ pathname }: { pathname: string | null }) {
 
 function ActiveNav() {
   const pathname = usePathname();
-  return pathname === "/login" ? null : <NavBar pathname={pathname} />;
+  // Pas de navigation sur les pages accessibles sans connexion.
+  return pathname && PUBLIC_PAGES.includes(pathname) ? null : <NavBar pathname={pathname} />;
 }
 
 /** L'onglet actif dépend de l'URL : il est rendu sous Suspense (exigé sur les routes dynamiques). */

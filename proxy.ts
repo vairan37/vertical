@@ -20,7 +20,9 @@ export function proxy(request: NextRequest) {
   return NextResponse.redirect(url);
 }
 
-/** Fichiers publics : ce que le téléphone charge sans cookie pour installer la PWA. */
+/**
+ * Publics : fichiers de la PWA (chargés sans cookie) et pages légales exigées par TikTok et Meta.
+ */
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline.html|icons/).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline.html|icons/|conditions$|confidentialite$).*)"],
 };

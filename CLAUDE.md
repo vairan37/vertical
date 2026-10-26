@@ -43,6 +43,7 @@ app/
   nav.tsx             barre de navigation (Créer / Mes vidéos / Templates)
   page.tsx            page d'accueil -> outil de création
   login/              page de connexion (mot de passe unique), actions signIn / signOut
+  conditions/, confidentialite/  pages légales publiques (exigées par TikTok et Meta)
   creator.tsx         composant client de création (image, texte, auteur, musique, aperçu)
   pausing-video.tsx   <video> mis en pause quand la page est quittée (Activity) ou l'appli masquée
   videos/             "Mes vidéos" : grille de couvertures façon profil TikTok ; [id] = détail
@@ -85,7 +86,7 @@ scripts/migrate.mjs   applique les migrations (ignoré si DATABASE_URL absente)
 scripts/fetch-yt-dlp.mjs télécharge bin/yt-dlp au build (version figée + SHA-256 vérifié ; bin/ ignoré par git)
 assets/fonts/         polices TTF statiques (OFL / Apache) ; ajouter une police = fichier ici +
                       entrée dans FONTS (lib/template-settings.ts). Pas de police variable (Satori).
-proxy.ts              protège tout le site (sauf /login) ; voir étape 2
+proxy.ts              protège tout le site (sauf /login, /conditions, /confidentialite) ; voir étape 2
 next.config.ts        serverExternalPackages + outputFileTracingIncludes (ffmpeg, musiques, police)
 public/music/         musiques .mp3 incorporées dans les vidéos
 ```
