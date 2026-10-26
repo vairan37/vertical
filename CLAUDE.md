@@ -62,7 +62,7 @@ app/
   api/youtube/        search (GET ?q=) et audio (POST {id,start,length} -> MP3)
   api/images/         GET : bibliothèque d'images
   youtube-picker.tsx  recherche YouTube dans la section Musique du formulaire
-  tiktok-fields.tsx   réglages d'une publication TikTok (conformes aux règles d'audit TikTok)
+  tiktok-fields.tsx   TikTok : réglages du compte (Publiées) et écran de publication (règles d'audit)
   api/publish/        POST : publie une vidéo sur un réseau (ou reprend le suivi)
   api/social/tiktok/creator/ GET : infos du compte TikTok pour l'écran de publication
 lib/
@@ -89,6 +89,7 @@ lib/
   image-library.ts    bibliothèque (photos, clips, GIF) : liste, ajout sans doublon, lecture, retrait
   oauth.ts            adresse de retour OAuth, cookie state
   tiktok-options.ts   options TikTok (visibilité, interactions, déclaration) + validation, partagé
+  publish-settings.ts réglages de publication TikTok du compte (table publish_settings)
 drizzle/              migrations SQL générées (ne pas modifier à la main)
 scripts/migrate.mjs   applique les migrations (ignoré si DATABASE_URL absente)
 scripts/fetch-yt-dlp.mjs télécharge bin/yt-dlp au build (version figée + SHA-256 vérifié ; bin/ ignoré par git)
@@ -153,6 +154,11 @@ Objectif : l'appli la plus simple possible au pouce, sans rien de parasite. Styl
   suit les content-sharing-guidelines (vérifiées à l'audit, voir app/tiktok-fields.tsx et
   lib/tiktok-options.ts) : creator_info relu à chaque affichage et avant l'envoi, pseudo affiché,
   visibilité sans défaut, interactions décochées par défaut, déclaration commerciale, accord musique.
+  À la demande de Victor, visibilité et interactions sont choisies UNE fois dans Publiées →
+  Réglages TikTok (table publish_settings, lib/publish-settings.ts) et appliquées à chaque vidéo ;
+  au moment de publier on affiche le compte, le rappel des réglages, la déclaration commerciale
+  (par vidéo) et l'accord musique. Risque à l'audit (règles 2b/2c) : si TikTok refuse, remettre
+  le choix à chaque vidéo (TikTokPublishFields).
   Envoi en FILE_UPLOAD (PULL_FROM_URL exige un domaine vérifié :
   impossible avec Vercel Blob). Token 24 h + refresh 365 jours. 5 brouillons en attente / 24 h ;
   statut SEND_TO_USER_INBOX tant que Victor n'a pas publié depuis l'appli. Vues via Display API

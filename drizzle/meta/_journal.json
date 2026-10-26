@@ -85,6 +85,13 @@
       "when": 1793027249914,
       "tag": "0011_library_clips_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793027596759,
+      "tag": "0012_publish_settings",
+      "breakpoints": true
     }
   ]
 }

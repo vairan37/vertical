@@ -14,7 +14,7 @@ import { EMPTY_TIKTOK_OPTIONS, tiktokOptionsError, type CreatorInfo, type TikTok
 import ExcerptFields, { type Excerpt } from "./excerpt-fields";
 import ImageLibrary, { type LibraryImage } from "./image-library";
 import PausingVideo from "./pausing-video";
-import TikTokFields from "./tiktok-fields";
+import TikTokPublishFields from "./tiktok-fields";
 import { ui } from "./ui";
 import YoutubePicker, { type YoutubeChoice } from "./youtube-picker";
 
@@ -177,11 +177,14 @@ export default function Creator({
   templates,
   blobUpload,
   connected,
+  tiktokSettings,
 }: {
   templates: TemplateOption[];
   blobUpload: boolean;
   /** Comptes connectés et utilisables, pour proposer la publication automatique. */
   connected: Record<Platform, boolean>;
+  /** Réglages TikTok du compte (Publiées), appliqués à chaque publication. */
+  tiktokSettings: TikTokOptions | null;
 }) {
   const [image, setImage] = useState<Blob | null>(null);
   // Image reprise de la bibliothèque (déjà dans le stockage : rien à renvoyer).
@@ -219,7 +222,7 @@ export default function Creator({
   // Publication automatique juste après la création.
   const [caption, setCaption] = useState("");
   const [publishTo, setPublishTo] = useState<Record<Platform, boolean>>({ instagram: false, tiktok: false });
-  const [tiktokOptions, setTiktokOptions] = useState<TikTokOptions>(EMPTY_TIKTOK_OPTIONS);
+  const [tiktokOptions, setTiktokOptions] = useState<TikTokOptions>(tiktokSettings ?? EMPTY_TIKTOK_OPTIONS);
   const [tiktokCreator, setTiktokCreator] = useState<CreatorInfo | null>(null);
   const [publishLines, setPublishLines] = useState<Partial<Record<Platform, PublishLine>>>({});
   const [busy, setBusy] = useState(false);
@@ -898,7 +901,7 @@ export default function Creator({
               />
             </label>
             {p === "tiktok" && publishTo.tiktok && connected.tiktok && (
-              <TikTokFields value={tiktokOptions} onChange={setTiktokOptions} onCreator={setTiktokCreator} />
+              <TikTokPublishFields value={tiktokOptions} onChange={setTiktokOptions} onCreator={setTiktokCreator} />
             )}
           </div>
         ))}

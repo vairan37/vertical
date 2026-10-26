@@ -5,13 +5,16 @@ import { Suspense } from "react";
 import { listAccounts, type AccountInfo } from "@/lib/accounts";
 import { DbNotConfiguredError } from "@/lib/db";
 import type { Platform } from "@/lib/db";
+import { getTikTokSettings } from "@/lib/publish-settings";
 import { isDryRun } from "@/lib/social";
+import { EMPTY_TIKTOK_OPTIONS, type TikTokOptions } from "@/lib/tiktok-options";
 import { listVideos, PLATFORMS, type VideoWithPublications } from "@/lib/videos";
 import SubmitButton from "../videos/submit-button";
 import VideoGrid from "../videos/video-grid";
 import { signOut } from "../login/actions";
 import { disconnectAccount } from "./actions";
 import ConnectButton from "./connect-button";
+import { TikTokSettingsForm } from "../tiktok-fields";
 import { ui } from "../ui";
 
 export const metadata: Metadata = { title: "Publiées · vertical" };
@@ -48,8 +51,9 @@ async function PublishedContent() {
   await connection();
   let items: VideoWithPublications[];
   let accounts: Partial<Record<Platform, AccountInfo>>;
+  let tiktokSettings: TikTokOptions | null;
   try {
-    [items, accounts] = await Promise.all([listVideos(), listAccounts()]);
+    [items, accounts, tiktokSettings] = await Promise.all([listVideos(), listAccounts(), getTikTokSettings()]);
   } catch (error) {
     console.error("Lecture des publications impossible", error);
     return (
@@ -77,6 +81,14 @@ async function PublishedContent() {
           <AccountRow key={p.id} platform={p.id} label={p.label} account={accounts[p.id]} published={count(p.id)} />
         ))}
       </section>
+
+      {/* Réglages choisis une fois, appliqués à chaque publication TikTok. */}
+      {accounts.tiktok && !accounts.tiktok.expired && accounts.tiktok.simulated === isDryRun() && (
+        <section aria-label="Réglages TikTok" className={ui.card}>
+          <h2 className={ui.label}>Réglages TikTok</h2>
+          <TikTokSettingsForm initial={tiktokSettings ?? EMPTY_TIKTOK_OPTIONS} />
+        </section>
+      )}
 
       <VideoGrid
         items={published}

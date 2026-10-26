@@ -1,9 +1,11 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { listAccounts } from "@/lib/accounts";
+import { getTikTokSettings } from "@/lib/publish-settings";
 import { isDryRun } from "@/lib/social";
 import { usesVercelBlob } from "@/lib/storage";
 import { parseSettings } from "@/lib/template-settings";
+import type { TikTokOptions } from "@/lib/tiktok-options";
 import { listTemplates } from "@/lib/templates";
 import Creator, { type TemplateOption } from "./creator";
 import { ui } from "./ui";
@@ -23,8 +25,10 @@ async function CreatorWithTemplates() {
   await connection();
   let templates: TemplateOption[] = [];
   const connected = { instagram: false, tiktok: false };
+  let tiktokSettings: TikTokOptions | null = null;
   try {
-    const [rows, accounts] = await Promise.all([listTemplates(), listAccounts()]);
+    const [rows, accounts, settings] = await Promise.all([listTemplates(), listAccounts(), getTikTokSettings()]);
+    tiktokSettings = settings;
     templates = rows.map((t) => ({ id: t.id, name: t.name, settings: parseSettings(t.settings) }));
     for (const p of ["instagram", "tiktok"] as const) {
       const a = accounts[p];
@@ -34,5 +38,5 @@ async function CreatorWithTemplates() {
     // Sans base, on crée quand même avec le look d'origine (sans publication automatique).
     console.error("Lecture des templates ou des comptes impossible", error);
   }
-  return <Creator templates={templates} blobUpload={usesVercelBlob()} connected={connected} />;
+  return <Creator templates={templates} blobUpload={usesVercelBlob()} connected={connected} tiktokSettings={tiktokSettings} />;
 }

@@ -76,9 +76,9 @@ export function parseTikTokOptionsJson(text: string): TikTokOptions | null {
 
 /** Ce qui empêche de publier, ou null. `creator` : infos du compte quand elles sont connues. */
 export function tiktokOptionsError(o: TikTokOptions | null, creator?: CreatorInfo | null, duration?: number): string | null {
-  if (!o?.privacyLevel) return "Choisis qui peut voir la vidéo sur TikTok.";
+  if (!o?.privacyLevel) return "Choisis qui peut voir tes vidéos TikTok : Publiées → Réglages TikTok.";
   if (creator && !creator.privacyOptions.includes(o.privacyLevel)) {
-    return "Cette visibilité n'est pas disponible pour ton compte TikTok : choisis-en une autre.";
+    return "Cette visibilité n'est plus disponible pour ton compte TikTok : change-la dans Publiées → Réglages TikTok.";
   }
   if (o.disclose && !o.yourBrand && !o.brandedContent) {
     return "Indique si la vidéo fait ta promotion, celle d'un tiers, ou les deux.";

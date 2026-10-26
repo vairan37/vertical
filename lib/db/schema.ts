@@ -129,3 +129,14 @@ export const images = pgTable("images", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Réglages de publication par réseau, choisis une fois par Victor dans « Publiées » (TikTok :
+ * visibilité, commentaires, duos, collages). À part de social_accounts : se déconnecter ne les
+ * efface pas.
+ */
+export const publishSettings = pgTable("publish_settings", {
+  platform: platform("platform").primaryKey(),
+  settings: jsonb("settings").$type<TikTokOptions>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

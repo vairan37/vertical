@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { listAccounts } from "@/lib/accounts";
+import { getTikTokSettings } from "@/lib/publish-settings";
 import { isDryRun } from "@/lib/social";
-import { parseTikTokOptions } from "@/lib/tiktok-options";
+import { parseTikTokOptions, type TikTokOptions } from "@/lib/tiktok-options";
 import { displayName, getVideo, PLATFORMS } from "@/lib/videos";
 import PausingVideo from "../../pausing-video";
 import PublishSection from "../publish-section";
@@ -32,7 +33,7 @@ export default function VideoPage({ params }: PageProps<"/videos/[id]">) {
 
 async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["params"] }) {
   const { id } = await params;
-  const [video, accounts] = await Promise.all([getVideo(id), listAccounts()]);
+  const [video, accounts, tiktokSettings] = await Promise.all([getVideo(id), listAccounts(), getTikTokSettings()]);
   if (!video) notFound();
 
   const published = PLATFORMS.filter((p) => video.publications[p.id]?.status === "published");
@@ -58,7 +59,7 @@ async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["para
         <PublishSection
           videoId={video.id}
           defaultCaption={video.caption ?? [video.text, video.author ? `- ${video.author}` : ""].filter(Boolean).join("\n")}
-          defaultTiktok={parseTikTokOptions(video.tiktokOptions)}
+          defaultTiktok={tiktokDefaults(parseTikTokOptions(video.tiktokOptions), tiktokSettings)}
           duration={video.duration}
           dryRun={isDryRun()}
           platforms={PLATFORMS.map((p) => ({
@@ -85,4 +86,14 @@ async function VideoDetail({ params }: { params: PageProps<"/videos/[id]">["para
       </section>
     </div>
   );
+}
+
+/**
+ * Réglages TikTok pour publier cette vidéo : ceux du compte (Publiées) s'ils existent, sinon ceux
+ * enregistrés avec la vidéo ; la déclaration commerciale reste celle de la vidéo.
+ */
+function tiktokDefaults(stored: TikTokOptions | null, account: TikTokOptions | null): TikTokOptions | null {
+  if (!account) return stored;
+  const { privacyLevel, allowComment, allowDuet, allowStitch } = account;
+  return { ...(stored ?? account), privacyLevel, allowComment, allowDuet, allowStitch };
 }

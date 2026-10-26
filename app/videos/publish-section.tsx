@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { Platform } from "@/lib/db";
 import { EMPTY_TIKTOK_OPTIONS, tiktokOptionsError, type CreatorInfo, type TikTokOptions } from "@/lib/tiktok-options";
 import type { Publication } from "@/lib/videos";
-import TikTokFields from "../tiktok-fields";
+import TikTokPublishFields from "../tiktok-fields";
 import { cancelPublication, setManualPublication } from "./actions";
 import { ui } from "../ui";
 
@@ -145,7 +145,7 @@ export default function PublishSection({
             )}
 
             {id === "tiktok" && tiktokOpen && tiktokRow && canStart(tiktokRow) && (
-              <TikTokFields value={tiktok} onChange={setTiktok} onCreator={setCreator} />
+              <TikTokPublishFields value={tiktok} onChange={setTiktok} onCreator={setCreator} />
             )}
 
             <div className="flex flex-wrap gap-2">
