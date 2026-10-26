@@ -15,9 +15,10 @@ const SCOPES = ["user.info.basic", "video.upload"];
 /** Morceaux de 5 à 64 Mo ; sous 64 Mo, un seul morceau (le cas de nos vidéos). */
 const CHUNK = 32 * 1024 * 1024;
 
+/** Identifiants de l'app (espaces et retours à la ligne d'un copier-coller retirés). */
 function credentials() {
-  const key = process.env.TIKTOK_CLIENT_KEY;
-  const secret = process.env.TIKTOK_CLIENT_SECRET;
+  const key = process.env.TIKTOK_CLIENT_KEY?.trim();
+  const secret = process.env.TIKTOK_CLIENT_SECRET?.trim();
   if (!key || !secret) {
     throw new SocialError("App TikTok non configurée : ajoute TIKTOK_CLIENT_KEY et TIKTOK_CLIENT_SECRET sur Vercel.");
   }

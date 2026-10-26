@@ -11,9 +11,10 @@ import { readJson, SocialError, type SocialProvider, type Tokens } from "./types
 const GRAPH = "https://graph.instagram.com/v26.0";
 const SCOPES = ["instagram_business_basic", "instagram_business_content_publish"];
 
+/** Identifiants de l'app (espaces et retours à la ligne d'un copier-coller retirés). */
 function credentials() {
-  const id = process.env.INSTAGRAM_APP_ID;
-  const secret = process.env.INSTAGRAM_APP_SECRET;
+  const id = process.env.INSTAGRAM_APP_ID?.trim();
+  const secret = process.env.INSTAGRAM_APP_SECRET?.trim();
   if (!id || !secret) {
     throw new SocialError("App Instagram non configurée : ajoute INSTAGRAM_APP_ID et INSTAGRAM_APP_SECRET sur Vercel.");
   }
