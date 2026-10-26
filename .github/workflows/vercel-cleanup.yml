@@ -1,0 +1,35 @@
+# Nettoyage des anciens déploiements Vercel du projet « vertical », chaque lundi (et à la demande
+# depuis l'onglet Actions de GitHub > « Nettoyage Vercel » > Run workflow).
+#
+# ATTENTION : la commande DOIT garder --safe. Sans --safe, `vercel remove vertical` supprime le
+# projet entier (https://vercel.com/docs/cli/remove). Avec --safe, les déploiements qui ont une
+# URL active (production, alias de branche) sont conservés : seuls les anciens sont supprimés.
+#
+# Secret GitHub requis : VERCEL_TOKEN (Settings > Secrets and variables > Actions).
+# Variable facultative : VERCEL_SCOPE, seulement si le projet est dans une équipe Vercel.
+name: Nettoyage Vercel
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  remove-old-deployments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Supprimer les anciens déploiements (vercel remove --safe)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_SCOPE: ${{ vars.VERCEL_SCOPE }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::Secret VERCEL_TOKEN manquant (voir README, « Nettoyage des déploiements »)."
+            exit 1
+          fi
+          scope=()
+          if [ -n "$VERCEL_SCOPE" ]; then scope=(--scope "$VERCEL_SCOPE"); fi
+          npx --yes vercel@63.1.2 remove vertical --safe --yes --token "$VERCEL_TOKEN" "${scope[@]}"

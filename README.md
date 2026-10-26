@@ -125,6 +125,22 @@ L'aperçu se met à jour en direct. Supprimer une template ne supprime pas les v
 Pour ajouter une police : dépose un fichier `.ttf` **statique** (pas de police variable) dans
 `assets/fonts/` et ajoute-la dans `FONTS` (`lib/template-settings.ts`).
 
+## Nettoyage des déploiements
+
+Chaque lundi, GitHub Actions lance `vercel remove vertical --safe`
+(`.github/workflows/vercel-cleanup.yml`) pour supprimer les anciens déploiements. Ceux qui ont
+une URL active (production, dernière version de chaque branche) sont gardés. **Ne jamais
+retirer `--safe`** : sans cette option, la commande supprime le projet entier.
+
+À régler une fois :
+
+1. Vercel → **Account Settings** → **Tokens** → crée un token (expiration 1 an, par exemple).
+2. GitHub → dépôt `vertical` → **Settings** → **Secrets and variables** → **Actions** →
+   **New repository secret** : nom `VERCEL_TOKEN`, valeur = le token.
+3. Facultatif, seulement si le projet est dans une équipe Vercel : onglet **Variables**,
+   `VERCEL_SCOPE` = le nom de l'équipe.
+4. Pour tester tout de suite : onglet **Actions** → « Nettoyage Vercel » → **Run workflow**.
+
 ## Avancement
 
 Voir [CLAUDE.md](./CLAUDE.md) pour la stack, la structure du code et le plan de travail.
