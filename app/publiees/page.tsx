@@ -8,6 +8,7 @@ import type { Platform } from "@/lib/db";
 import { listVideos, PLATFORMS, type VideoWithPublications } from "@/lib/videos";
 import SubmitButton from "../videos/submit-button";
 import VideoGrid from "../videos/video-grid";
+import { signOut } from "../login/actions";
 import { disconnectAccount } from "./actions";
 import ConnectButton from "./connect-button";
 
@@ -20,6 +21,11 @@ export default function PublishedPage() {
       <Suspense fallback={<p className="px-4 text-zinc-400">Chargement…</p>}>
         <PublishedContent />
       </Suspense>
+      <form action={signOut} className="mt-10 px-4">
+        <SubmitButton className="min-h-12 w-full rounded-xl bg-zinc-900 text-sm text-zinc-400">
+          Se déconnecter de vertical
+        </SubmitButton>
+      </form>
     </main>
   );
 }

@@ -1,3 +1,4 @@
+import { denyUnauthenticated } from "@/lib/auth";
 import { readLocalFile } from "@/lib/storage";
 
 const TYPES: Record<string, string> = {
@@ -11,6 +12,8 @@ const TYPES: Record<string, string> = {
 
 /** Sert les fichiers du stockage local (développement sans Vercel Blob). */
 export async function GET(request: Request, ctx: RouteContext<"/api/files/[name]">) {
+  const denied = await denyUnauthenticated();
+  if (denied) return denied;
   const { name } = await ctx.params;
   const data = await readLocalFile(name);
   if (!data) return new Response("Fichier introuvable", { status: 404 });

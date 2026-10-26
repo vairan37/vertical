@@ -102,3 +102,10 @@ export const socialAccounts = pgTable("social_accounts", {
   refreshExpiresAt: timestamp("refresh_expires_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Échecs de connexion, pour limiter les essais de mot de passe (par IP et au total). */
+export const loginAttempts = pgTable("login_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ip: text("ip").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

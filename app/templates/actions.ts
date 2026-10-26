@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAuth } from "@/lib/auth";
 import { asc, eq, ne } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
@@ -15,6 +16,7 @@ function cleanName(name: unknown) {
 }
 
 export async function createTemplate() {
+  await requireAuth();
   const [row] = await getDb()
     .insert(templates)
     .values({ name: "Nouvelle template", settings: DEFAULT_SETTINGS })
@@ -23,6 +25,7 @@ export async function createTemplate() {
 }
 
 export async function duplicateTemplate(id: string) {
+  await requireAuth();
   const source = await getTemplate(id);
   if (!source) throw new Error("Template introuvable.");
   await getDb()
@@ -33,6 +36,7 @@ export async function duplicateTemplate(id: string) {
 
 /** Enregistre le nom et les réglages. Renvoie un message d'erreur en français, ou null. */
 export async function updateTemplate(id: string, name: string, settings: unknown): Promise<string | null> {
+  await requireAuth();
   if (!UUID.test(id)) return "Template introuvable.";
   const updated = await getDb()
     .update(templates)
@@ -46,6 +50,7 @@ export async function updateTemplate(id: string, name: string, settings: unknown
 
 /** Les vidéos déjà créées sont conservées : leur lien vers la template passe à null. */
 export async function deleteTemplate(id: string): Promise<string | null> {
+  await requireAuth();
   if (!UUID.test(id)) return "Template introuvable.";
   await getDb().transaction(async (tx) => {
     const [deleted] = await tx.delete(templates).where(eq(templates.id, id)).returning();
@@ -59,6 +64,7 @@ export async function deleteTemplate(id: string): Promise<string | null> {
 }
 
 export async function setDefaultTemplate(id: string) {
+  await requireAuth();
   if (!UUID.test(id)) throw new Error("Template introuvable.");
   const db = getDb();
   await db.transaction(async (tx) => {

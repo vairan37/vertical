@@ -1,3 +1,4 @@
+import { denyUnauthenticated } from "@/lib/auth";
 import { issueSignedToken } from "@vercel/blob";
 import { handleUploadPresigned, type HandleUploadPresignedBody } from "@vercel/blob/client";
 import { MAX_CLIP_BYTES, saveFile, usesVercelBlob } from "@/lib/storage";
@@ -12,6 +13,8 @@ const PATHNAME = /^sources\/[A-Za-z0-9_-]+\.(mp4|mov|webm|gif)$/;
  * - En local sans Blob : envoi multipart classique, enregistré sur le disque.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnauthenticated();
+  if (denied) return denied;
   if (request.headers.get("content-type")?.startsWith("multipart/form-data")) {
     if (usesVercelBlob()) return Response.json({ error: "Envoi direct requis." }, { status: 400 });
     const file = (await request.formData()).get("file");

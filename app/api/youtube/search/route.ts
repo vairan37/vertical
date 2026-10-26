@@ -1,9 +1,12 @@
+import { denyUnauthenticated } from "@/lib/auth";
 import { cookiesConfigured, searchYoutube, YoutubeError } from "@/lib/youtube";
 
 export const maxDuration = 30;
 
 /** GET /api/youtube/search?q=… : 8 résultats (id, titre, chaîne, durée, miniature). */
 export async function GET(request: Request) {
+  const denied = await denyUnauthenticated();
+  if (denied) return denied;
   const q = new URL(request.url).searchParams.get("q") ?? "";
   try {
     // downloadReady : sans cookies, YouTube bloquera le téléchargement de l'extrait.

@@ -41,6 +41,7 @@ app/
   layout.tsx          layout racine (lang="fr", thème sombre, navigation)
   nav.tsx             barre de navigation (Créer / Mes vidéos / Templates)
   page.tsx            page d'accueil -> outil de création
+  login/              page de connexion (mot de passe unique), actions signIn / signOut
   creator.tsx         composant client de création (image, texte, auteur, musique, aperçu)
   pausing-video.tsx   <video> mis en pause quand la page est quittée (Activity) ou l'appli masquée
   videos/             "Mes vidéos" : grille de couvertures façon profil TikTok ; [id] = détail
@@ -69,6 +70,8 @@ lib/
                       vidéo : fond + clip cadré + calque texte transparent, encodé ~temps réel)
   db/schema.ts        tables Drizzle : templates, videos, publications, stats, social_accounts
   db/index.ts         connexion Postgres (driver pg, compatible Neon)
+  session.ts          cookie de session signé (sans base, utilisé par proxy.ts)
+  auth.ts             requireAuth / denyUnauthenticated, connexion avec limite d'essais
   storage.ts          Vercel Blob (ou disque local en dev)
   videos.ts           lecture des vidéos avec leurs publications
 drizzle/              migrations SQL générées (ne pas modifier à la main)
@@ -76,6 +79,7 @@ scripts/migrate.mjs   applique les migrations (ignoré si DATABASE_URL absente)
 scripts/fetch-yt-dlp.mjs télécharge bin/yt-dlp au build (version figée + SHA-256 vérifié ; bin/ ignoré par git)
 assets/fonts/         polices TTF statiques (OFL / Apache) ; ajouter une police = fichier ici +
                       entrée dans FONTS (lib/template-settings.ts). Pas de police variable (Satori).
+proxy.ts              protège tout le site (sauf /login) ; voir étape 2
 next.config.ts        serverExternalPackages + outputFileTracingIncludes (ffmpeg, musiques, police)
 public/music/         musiques .mp3 incorporées dans les vidéos
 ```
@@ -150,8 +154,12 @@ public/music/         musiques .mp3 incorporées dans les vidéos
 - [x] Navigation : Next 16 + cacheComponents cache la page quittée (React <Activity>) sans
       arrêter la lecture des <video>/<audio> : utiliser PausingVideo / un nettoyage
       useLayoutEffect qui met en pause.
-- [ ] Étape 2 : authentification (mot de passe unique, cookie httpOnly, limite de tentatives ;
-      routes cron protégées par secret)
+- [x] Étape 2 : authentification. proxy.ts protège tout sauf /login (pages -> /login?next=,
+      API -> 401). Cookie httpOnly signé HMAC (lib/session.ts, clé dérivée de APP_PASSWORD par
+      scrypt, 60 jours). Sans APP_PASSWORD : ouvert en local, fermé sur Vercel. Les Server Actions
+      appellent requireAuth() et les routes API denyUnauthenticated() (lib/auth.ts) : à faire pour
+      toute nouvelle action/route. Limite : 5 échecs/IP et 20 au total par 15 min (table
+      login_attempts). /api/cron/* passe avec `Authorization: Bearer CRON_SECRET`.
 - [ ] Étape 3 : publication (SocialProvider + simulation, écran de publication, Instagram, TikTok,
       page "Comptes", README de création des apps)
 - [ ] Étape 4 : tableau de bord des vues (liste, totaux, courbes, Vercel Cron quotidien,

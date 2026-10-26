@@ -1,3 +1,4 @@
+import { denyUnauthenticated } from "@/lib/auth";
 import { parseSettings } from "@/lib/template-settings";
 import { MAX_AUTHOR_LENGTH, MAX_TEXT_LENGTH, renderFrame } from "@/lib/template";
 
@@ -6,6 +7,8 @@ import { MAX_AUTHOR_LENGTH, MAX_TEXT_LENGTH, renderFrame } from "@/lib/template"
  * L'image est remplacée par un emplacement coloré.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnauthenticated();
+  if (denied) return denied;
   const params = new URL(request.url).searchParams;
   let raw: unknown = {};
   try {

@@ -1,3 +1,4 @@
+import { denyUnauthenticated } from "@/lib/auth";
 import { EXCERPT_MAX, youtubeExcerpt, YoutubeError } from "@/lib/youtube";
 
 export const maxDuration = 60;
@@ -7,6 +8,8 @@ export const maxDuration = 60;
  * Le titre de la vidéo est dans l'en-tête X-Title (encodé URI).
  */
 export async function POST(request: Request) {
+  const denied = await denyUnauthenticated();
+  if (denied) return denied;
   const body = (await request.json().catch(() => null)) as { id?: unknown; start?: unknown; length?: unknown } | null;
   const id = String(body?.id ?? "");
   const start = Number(body?.start ?? 0);

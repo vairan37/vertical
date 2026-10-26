@@ -1,3 +1,4 @@
+import { denyUnauthenticated } from "@/lib/auth";
 import { readSourceImage } from "@/lib/source-image";
 import { MAX_AUTHOR_LENGTH, MAX_TEXT_LENGTH, renderFrame } from "@/lib/template";
 import { resolveTemplate } from "@/lib/templates";
@@ -10,6 +11,8 @@ export const maxDuration = 30;
  * -> JPEG 540x960. Sans image, un emplacement coloré la remplace.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnauthenticated();
+  if (denied) return denied;
   let form: FormData;
   try {
     form = await request.formData();

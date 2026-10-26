@@ -21,6 +21,19 @@ npm run lint
 npm run build
 ```
 
+## Mot de passe
+
+Tout le site (pages, routes API, actions) est réservé à toi : sans connexion, on arrive sur
+`/login`. Sur Vercel → **Settings** → **Environment Variables**, ajoute `APP_PASSWORD` (un
+mot de passe long), puis **redéploie**. Tant qu'elle manque, le site reste fermé.
+
+- La connexion dure 60 jours sur l'appareil (cookie httpOnly signé).
+- 5 erreurs par adresse IP, ou 20 au total, bloquent les essais pendant 15 minutes.
+  Une session déjà ouverte n'est pas touchée.
+- Changer `APP_PASSWORD` (puis redéployer) déconnecte tous les appareils.
+- « Se déconnecter de vertical » est en bas de la page « Publiées ».
+- En local, sans `APP_PASSWORD`, le site est ouvert.
+
 ## Base de données et stockage
 
 - Base Postgres (Neon) via Drizzle ORM. Les migrations (`drizzle/`) sont appliquées automatiquement

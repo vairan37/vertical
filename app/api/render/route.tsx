@@ -1,3 +1,4 @@
+import { denyUnauthenticated } from "@/lib/auth";
 import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -28,6 +29,8 @@ function fail(message: string, status = 400) {
 }
 
 export async function POST(request: Request) {
+  const denied = await denyUnauthenticated();
+  if (denied) return denied;
   let form: FormData;
   try {
     form = await request.formData();
@@ -141,6 +144,8 @@ export async function POST(request: Request) {
 
 /** Diagnostic : ouvre /api/render dans le navigateur pour vérifier le serveur. */
 export async function GET() {
+  const denied = await denyUnauthenticated();
+  if (denied) return denied;
   const ffmpeg = ffmpegPath ? await access(ffmpegPath).then(() => true, () => false) : false;
   const music = await listMusic();
   return Response.json({

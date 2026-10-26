@@ -35,7 +35,8 @@ function NavBar({ pathname }: { pathname: string | null }) {
 }
 
 function ActiveNav() {
-  return <NavBar pathname={usePathname()} />;
+  const pathname = usePathname();
+  return pathname === "/login" ? null : <NavBar pathname={pathname} />;
 }
 
 /** L'onglet actif dépend de l'URL : il est rendu sous Suspense (exigé sur les routes dynamiques). */
